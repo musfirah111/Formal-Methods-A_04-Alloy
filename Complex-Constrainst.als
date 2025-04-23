@@ -196,7 +196,7 @@ fun timeInMinutes[t: Time]: Int {
 // No two appointments for the same doctor can overlap in time.
 fact NoOverlappingAppointments {
   all a1, a2: Appointment |
-    (a1 != a2 and a1.doctor = a2.doctor) => (
+    (a1 != a2 and a1.doctor = a2.doctor) implies (
       a1.date != a2.date or
       timeInMinutes[a1.timeSlot.endingTime] <= timeInMinutes[a2.timeSlot.startingTime] or
       timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a1.timeSlot.startingTime])
@@ -205,15 +205,17 @@ fact NoOverlappingAppointments {
 // Doctors must not have back-to-back appointments without a 10-minute gap
 fact DoctorAppointmentsHave10MinGap {
   all a1, a2: Appointment |
-    (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) =>
+    (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
       timeInMinutes[a1.timeSlot.endingTime] + 10 <= timeInMinutes[a2.timeSlot.startingTime]
       or timeInMinutes[a2.timeSlot.endingTime] + 10 <= timeInMinutes[a1.timeSlot.startingTime]
 }
 
 // Appointments must fall within the doctor’s declared working hours.
 fact AppointmentsInDoctorsWorkingHours {
-    all a1: Appointment |
-    some s1: a1.doctor.assignedShifts | (s1.date = a1.date) 
+    all a: Appointment |
+    some s: a.doctor.assignedShifts | (s.date = a.date) implies
+    (timeInMinutes[a.timeSlot.startingTime] >= timeInMinutes[a.startingTime] and
+    timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[a.endingTime])
 }
 
-
+// A nurse cannot be scheduled for night and morning shifts on the same day.
