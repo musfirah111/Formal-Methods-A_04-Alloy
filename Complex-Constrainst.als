@@ -195,10 +195,25 @@ fun timeInMinutes[t: Time]: Int {
 // Complex.
 // No two appointments for the same doctor can overlap in time.
 fact NoOverlappingAppointments {
-  all app1, app2: Appointment |
-    app1 != app2 and app1.doctor = app2.doctor =>
-      app1.date != app2.date or
-      timeInMinutes[app1.timeSlot.endingTime] <= timeInMinutes[app2.timeSlot.startingTime] or
-      timeInMinutes[app2.timeSlot.endingTime] <= timeInMinutes[app1.timeSlot.startingTime]
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor) => (
+      a1.date != a2.date or
+      timeInMinutes[a1.timeSlot.endingTime] <= timeInMinutes[a2.timeSlot.startingTime] or
+      timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a1.timeSlot.startingTime])
 }
+
+// Doctors must not have back-to-back appointments without a 10-minute gap
+fact DoctorAppointmentsHave10MinGap {
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) =>
+      timeInMinutes[a1.timeSlot.endingTime] + 10 <= timeInMinutes[a2.timeSlot.startingTime]
+      or timeInMinutes[a2.timeSlot.endingTime] + 10 <= timeInMinutes[a1.timeSlot.startingTime]
+}
+
+// Appointments must fall within the doctor’s declared working hours.
+fact AppointmentsInDoctorsWorkingHours {
+    all a1: Appointment |
+    some s1: a1.doctor.assignedShifts | (s1.date = a1.date) 
+}
+
 
