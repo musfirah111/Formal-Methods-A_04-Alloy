@@ -1,3 +1,8 @@
+
+one sig NationalHolidays {
+  dates: set String
+}
+
 abstract sig Person {
   id: one String,
   name: one String,
@@ -73,7 +78,8 @@ sig Bed {
   id: one Int,
   location: one String,
   isOccupied: one Int,
-  assignedPatient: lone Patient
+  assignedPatient: lone Patient,
+  type: one String //"General Ward", "ICU", "CCU"
 }
 
 sig Surgery {
@@ -157,36 +163,61 @@ sig LowStockAlert {
 
 
 //Simple Structural:
+//A doctor can be assigned to multiple patients.
 fact DoctorCanHaveMultiplePatients {
   all d: Doctor |
     #({ p: Patient | some a: d.appointments | a.patient = p }) > 1
 }
 
+//A resource can be assigned to only one patient at a time.
 fact ResourceAssignedToOnePatient {
   all r1, r2: Resource |
     r1 != r2 and r1.appointment.patient != r2.appointment.patient => r1 != r2
 }
 
+//Each appointment is linked to one doctor and one patient.
 fact EachAppointmentLinkedToDoctorAndPatient {
   all a: Appointment |
     one a.doctor and one a.patient
 }
 
+//Each prescription is issued by a registered doctor.
 fact PrescriptionsAreIssuedByDoctors {
   all p: Prescription |
     one p.appointment.doctor
 }
 
+//Every bill corresponds to a single patient.
 fact BillLinkedToOnePatient {
   all b: Bill | one b.appointment.patient
 }
 
+//Business or Real World Rules (5 - 10)
+//Appointments cannot be scheduled on national holidays except in emergencies.
+fact NoAppointmentOnNationalHolidaysExceptEmergency{
+   all a: Appointment | a.date in NationalHolidays.dates implies a.type = "Emergency"
+}
 
+//ICU patients must have 24/7 nursing.
+fact ICUPatientsHaveNursing24_7{
+  all p: Patient |
+    p.bed != none and p.bed.type = "ICU" implies
+      some s1, s2, s3: Shift, n1, n2, n3: Staff |
+        n1.type = "Nurse" and n1 in s1.assignedTo and
+        n2.type = "Nurse" and n2 in s2.assignedTo and
+        n3.type = "Nurse" and n3 in s3.assignedTo
+}
+
+//A discharge summary must be reviewed and signed by a senior doctor.
+fact DischargeSummaryReviewdAndSignedBySeniorDoctor {
+  all ds: DischargeSummary |
+    ds.signedBy.rank = "Senior"
+}
+
+//Emergency appointments override schedules.
 
 
 // Moderate Logic Rules
-
-
 // Appointments are only allowed if a doctor is available.
 fact AppointmentAllowedOnlyIfDoctorAvailable {
   all a: Appointment |
@@ -214,3 +245,6 @@ fact GenerateAlertWhenStockLow {
           a.sentTo = s
 }
 
+
+
+// Businees Constraints
