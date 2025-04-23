@@ -193,7 +193,6 @@ fact AppointmentAllowedOnlyIfDoctorAvailable {
     some s: a.doctor.assignedShifts | s.date = a.date
 }
 
-
 // If a patient cancels an appointment, the time slot should become available again.
 fact CancelledAppointmentFreesTimeSlot {
   all ts: TimeSlot |
@@ -201,9 +200,7 @@ fact CancelledAppointmentFreesTimeSlot {
       all a2: Appointment | a2.timeSlot = ts implies a2.status = "cancelled"
 }
 
-
-//  If the medicine stock is less than the minimum threshold, 
-// notify the pharmacy admin.
+//  If the medicine stock is less than the minimum threshold, notify the pharmacy admin.
 fact GenerateAlertWhenStockLow {
   all m: Medicine |
     m.stock < m.threshold =>
@@ -214,3 +211,30 @@ fact GenerateAlertWhenStockLow {
           a.sentTo = s
 }
 
+// If a staff member is marked on leave, they cannot be assigned to duties that day.
+fact StaffOnLeaveNotAssignedToShifts {
+  all s: Staff |
+    s.isOnLeave = 1 =>
+      all sh: Shift |
+        sh in s.assignedShifts implies no sh
+}
+
+// If the doctor has more than 25 patients in a day, no further appointments can be scheduled.
+fact PerDayMax25PatientsPerDoctor {
+  all d: Doctor, day: String |
+    #({ a: Appointment | a.doctor = d and a.date = day }.patient) <= 25
+}
+
+// Feedback can only be submitted after the appointment status is “Completed.”
+fact FeedbackOnlyAfterCompletedAppointment {
+  all f: Feedback |
+    f.appointment.status = "Completed"
+}
+
+// Appointment reminders must be sent 24 hours before the scheduled time.
+
+// If a patient receives any treatment, then a billing entry must be automatically generated for the services used.
+
+// Discharge summary must be uploaded before closing a patient case file.
+
+// If a patient is assigned to the ICU, the system must auto-assign a nurse.
