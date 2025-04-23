@@ -129,8 +129,14 @@ sig Shift {
 }
 
 sig TimeSlot {
-  startingTime: one String,
-  endingTime: one String
+  startingTime: one Time,
+  endingTime: one Time
+}
+
+// Time.
+sig Time {
+  hour: one Int,
+  minute: one Int
 }
 
 sig OperationTheater {
@@ -139,8 +145,10 @@ sig OperationTheater {
 
 sig Remainder {
   id: one Int,
+  sentTime: one Time,
   remainderOfAppointment: one Appointment
 }
+
 
 sig Feedback {
   id: one Int,
@@ -232,9 +240,21 @@ fact FeedbackOnlyAfterCompletedAppointment {
 }
 
 // Appointment reminders must be sent 24 hours before the scheduled time.
+fact remainderForAppointment {
+  all a: Appointment | 
+    some a.remainder => {
+      let r = a.remainder,
+          apptTime = a.timeSlot.startingTime,
+          sentTime = r.sentTime |
+        apptTime.hour - sentTime.hour = 24 and
+        apptTime.minute = sentTime.minute
+    }
+}
 
 // If a patient receives any treatment, then a billing entry must be automatically generated for the services used.
+fact automaticBillGeneration {
 
+}
 // Discharge summary must be uploaded before closing a patient case file.
 
 // If a patient is assigned to the ICU, the system must auto-assign a nurse.
