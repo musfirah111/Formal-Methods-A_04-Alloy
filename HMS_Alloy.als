@@ -1,3 +1,6 @@
+abstract sig CaseStatus {}
+one sig Open, Closed extends CaseStatus {}
+
 abstract sig Person {
   id: one String,
   name: one String,
@@ -13,7 +16,8 @@ sig Patient extends Person {
   bill: some Bill,
   ehr: one EHR,
   dischargeSummary: lone DischargeSummary,
-  bed: lone Bed
+  bed: lone Bed,
+  caseStatus: one CaseStatus
 }
 
 sig Staff extends Person {
@@ -122,6 +126,7 @@ sig Shift {
   id: one Int,
   date: one String,
   type: one String,
+  location: one String, 
   startingTime: one String,
   endingTime: one String,
   timeSlot: set TimeSlot,
@@ -253,8 +258,24 @@ fact remainderForAppointment {
 
 // If a patient receives any treatment, then a billing entry must be automatically generated for the services used.
 fact automaticBillGeneration {
-
+  all p: Patient |
+    all a: p.appointment |
+      some b: Bill | b.appointment = a
 }
+
 // Discharge summary must be uploaded before closing a patient case file.
+fact DischargeSummaryBeforeCaseClosure {
+  all p: Patient |
+    p.caseStatus = Closed implies p.dischargeSummary != none and p.dischargeSummary.patient = p
+}
 
 // If a patient is assigned to the ICU, the system must auto-assign a nurse.
+fact AutoAssignedNurseToICUPatient {
+  all p: Patient |
+    p.bed.isOccupied = 1 and p.bed.location = "ICU" implies
+      some n: Staff |
+        n.type = "Nurse" and
+        some s: n.assignedShifts |
+          s.date = p.appointment.date and
+          s.location = "ICU"
+}
