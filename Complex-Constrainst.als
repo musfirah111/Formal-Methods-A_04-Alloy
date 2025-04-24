@@ -219,3 +219,28 @@ fact AppointmentsInDoctorsWorkingHours {
 }
 
 // A nurse cannot be scheduled for night and morning shifts on the same day.
+// fact NoMorningAndNightShiftForSameNurse {
+//   all s1, s2: Shift | // all shift combos.
+//     s1 != s2 // different shifts. 
+//     and s1.date = s2.date // both shifts on same date.
+//     and 
+//     some nurse: Staff | // at least one nurse exists such that ...
+//     nurse.type = "Nurse" // staff is nurse.
+//     and nurse in s1.assignedTo and
+//     nurse in s2.assignedTo // nurse is one of the staff assigned to both shifts.
+//     and ((s1.type = "Morning" and s2.type = "Night") or (s1.type = "Night" and s2.type = "Morning")) implies
+//     (false)
+// }
+
+// A nurse cannot be scheduled for night and morning shifts on the same day.
+fact NoMorningAndNightShiftForSameNurse {
+  all s1, s2: Shift |
+    s1 != s2 and // different shifts.
+    s1.date = s2.date and // same date.
+    ((s1.type = "Morning" and s2.type = "Night") or (s1.type = "Night" and s2.type = "Morning")) implies
+      no nurse: Staff | // no staff exists ...
+        nurse.type = "Nurse" and // who is a nurse and ...
+        nurse in s1.assignedTo and 
+        nurse in s2.assignedTo // ... is assigned to both shifts.
+}
+
