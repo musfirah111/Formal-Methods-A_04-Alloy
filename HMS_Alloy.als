@@ -130,7 +130,7 @@ sig Resource {
 sig Shift {
   id: one Int,
   date: one String,
-  type: one String,
+  type: one String,  //Doctor, Nurse, QualityAssuranceTeam
   location: one String, 
   startingTime: one String,
   endingTime: one String,
@@ -164,7 +164,8 @@ sig Feedback {
   id: one Int,
   rating: one Int,
   comment: lone String,
-  appointment: one Appointment
+  appointment: one Appointment,
+  notifiedTeam: set Staff // Relation to staff of type "QualityAssuranceTeam"
 }
 
 sig LowStockAlert {
@@ -179,7 +180,8 @@ fun timeInMinutes[t: Time]: Int {
 }
 
 
-//Simple Structural:
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<Simple Structural>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 //A doctor can be assigned to multiple patients.
 fact DoctorCanHaveMultiplePatients {
   all d: Doctor |
@@ -209,7 +211,8 @@ fact BillLinkedToOnePatient {
   all b: Bill | one b.appointment.patient
 }
 
-//Business or Real World Rules (5 - 10)
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<Business or Real World Rules (5 - 10)>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 //Appointments cannot be scheduled on national holidays except in emergencies.
 fact NoAppointmentOnNationalHolidaysExceptEmergency{
    all a: Appointment | a.date in NationalHolidays.dates implies a.type = "Emergency"
@@ -245,11 +248,15 @@ fact EmergencyAppointmentsOverRideScdedules {
 
 //Poor feedback triggers a review.
 fact PoorFeedbackTriggersReview {
-  
+   all f: Feedback |
+    f.rating < 3 => {
+      some qa: Staff | qa.type = "QualityAssuranceTeam" and qa in f.notifiedTeam
+    }
 }
 
 
-// Moderate Logic Rules
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<Moderate Logic Rules>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 // Appointments are only allowed if a doctor is available.
 fact AppointmentAllowedOnlyIfDoctorAvailable {
   all a: Appointment |
