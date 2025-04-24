@@ -282,27 +282,21 @@ fact BlockAllergenMedicineFromPrescription {
 }
 
 // 10. Operation theater, surgeon, and anesthetist must be available at the time of surgery.
-// 10. Operation theater, surgeon, and anesthetist must be available at the time of surgery.
 fact OperationTheaterAndStaffAvailability {
   all s: Surgery |
     some ot: OperationTheater | ot.id = s.assignedOT and
     some surgeon: Doctor | surgeon = s.appointment.doctor and
-    some anesthetist: Staff | anesthetist = s.anesthetist and
-    some a: s.appointment.timeSlot |
-      // 1. Check if the operation theater is available during the surgery time.
-      timeInMinutes[a.startingTime] >= timeInMinutes[ot.startingTime] and
-      timeInMinutes[a.endingTime] <= timeInMinutes[ot.endingTime] and
-
-      // 2. Check if the surgeon is available during the surgery time slot.
-      some surgeonShift: surgeon.assignedShifts |
-        surgeonShift.date = a.date and
-        timeInMinutes[a.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
-        timeInMinutes[a.endingTime] <= timeInMinutes[surgeonShift.endingTime] and
-
-      // 3. Check if the anesthetist is available during the surgery time slot.
-      some anesthetistShift: anesthetist.assignedShifts |
-        anesthetistShift.date = a.date and
-        timeInMinutes[a.startingTime] >= timeInMinutes[anesthetistShift.startingTime] and
-        timeInMinutes[a.endingTime] <= timeInMinutes[anesthetistShift.endingTime]
+    some an: Staff | an = s.anesthetist and
+    
+    // Check if the surgeon is available during the surgery time slot
+    some surgeonShift: surgeon.assignedShifts |
+      surgeonShift.date = s.appointment.date and
+      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
+      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[surgeonShift.endingTime] and
+    
+    // Check if the anesthetist is available during the surgery time slot
+    some anesthetistShift: an.assignedShifts |
+      anesthetistShift.date = s.appointment.date and
+      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[anesthetistShift.startingTime] and
+      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[anesthetistShift.endingTime]
 }
-
