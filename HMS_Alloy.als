@@ -173,11 +173,6 @@ sig LowStockAlert {
   sentTo: one Staff
 }
 
-// Time.
-sig Time {
-  hour: one Int,
-  minute: one Int
-}
 
 fun timeInMinutes[t: Time]: Int {
   mul[t.hour, 60] + t.minute
