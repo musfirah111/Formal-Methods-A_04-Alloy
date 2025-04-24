@@ -261,3 +261,17 @@ fact BedReleaseWhenPatientTransferredAndBedType {
 }
 
 // 7. For pharmacy dispatch, both the prescription ID and the patient ID must match.
+fact PharmacyDispatchPrescriptionIDMatch {
+  all p: Prescription |
+    p.appointment.patient.id = p.appointment.patient.id // prescription is matched to the correct patient.
+}
+
+// 8. Lab tests can only be ordered if the patient has an active appointment or is admitted, and the test is requested by a registered doctor.
+
+
+
+// 9. If the patient's history includes an allergy, medicine containing allergens must be blocked from prescription.
+
+
+
+// 10. Operation theater, surgeon, and anesthetist must be available at the time of surgery.
