@@ -185,7 +185,7 @@ fun timeInMinutes[t: Time]: Int {
 }
 
 // Complex.
-// No two appointments for the same doctor can overlap in time.
+// 1. No two appointments for the same doctor can overlap in time.
 fact NoOverlappingAppointments {
   all a1, a2: Appointment |
     (a1 != a2 and a1.doctor = a2.doctor) implies (
@@ -194,7 +194,7 @@ fact NoOverlappingAppointments {
       timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a1.timeSlot.startingTime])
 }
 
-// Doctors must not have back-to-back appointments without a 10-minute gap
+// 2. Doctors must not have back-to-back appointments without a 10-minute gap
 fact DoctorAppointmentsHave10MinGap {
   all a1, a2: Appointment |
     (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
@@ -202,7 +202,7 @@ fact DoctorAppointmentsHave10MinGap {
       or timeInMinutes[a2.timeSlot.endingTime] + 10 <= timeInMinutes[a1.timeSlot.startingTime]
 }
 
-// Appointments must fall within the doctor’s declared working hours.
+// 3. Appointments must fall within the doctor’s declared working hours.
 fact AppointmentsInDoctorsWorkingHours {
     all a: Appointment |
     some s: a.doctor.assignedShifts | (s.date = a.date) implies
@@ -224,7 +224,7 @@ fact AppointmentsInDoctorsWorkingHours {
 //     (false)
 // }
 
-// A nurse cannot be scheduled for night and morning shifts on the same day.
+// 4. A nurse cannot be scheduled for night and morning shifts on the same day.
 fact NoMorningAndNightShiftForSameNurse {
   all s1, s2: Shift |
     s1 != s2 and // different shifts.
@@ -236,12 +236,28 @@ fact NoMorningAndNightShiftForSameNurse {
         nurse in s2.assignedTo // ... is assigned to both shifts.
 }
 
-// A patient’s EHR can only be modified by the assigned doctor.
+// 5. A patient’s EHR can only be modified by the assigned doctor.
 fact OnlyAssignedDoctorCanModifyEHR {
   all a: Appointment |
     a.patient.ehr.patient = a.patient and
     a.doctor in Doctor
 }
 
-// If a patient is transferred from the ward to the ICU, the previous bed must be released.
+// 6. If a patient is transferred from the ward to the ICU, the previous bed must be released.
+fact BedReleaseWhenPatientTransferredAndBedType {
+  all p: Patient, b1, b2: Bed |
+    // Ensure patient p occupies b1 and b2 is empty.
+    p.bed = b1 and b2.isOccupied = 0 and
+    // When patient is transferred to b2 (ICU), b1 is released (ward).
+    p.bed = b2 implies {
+      // Ensure that the patient's previous bed is a ward bed (b1 type).
+      b1.type = "General Ward" and
+      b2.type = "ICU" and // The new bed is ICU.
+      b1.isOccupied = 0 and  // Release previous bed.
+      b1.assignedPatient = none and  // No longer assigned to any patient.
+      b2.isOccupied = 1 and  // The new bed must be occupied.
+      b2.assignedPatient = p // The patient is assigned to the new bed.
+    }
+}
 
+// 7. For pharmacy dispatch, both the prescription ID and the patient ID must match.
