@@ -362,11 +362,23 @@ fact BillMatchTheSum {
   //   totalSum = r: Resource |
   //   r.resourceCost + l: LabTest |
   //   l.testCost + m: Medicine |
-  //   m.medicineCost
+  //   m.medicineCosts
 }
 
 // Meds can’t be issued without a prescription.
+fact MedsCannotBeIssuedWithoutPrescription {
+  all m: Medicine |
+    some p: Prescription | p.medicines = m => some p
+}
 
 // Feedback must be linked to completed appointments.
+fact FeedbackLinkedToCompletedAppointments {
+  all f: Feedback |
+    f.appointment.status = "Completed" and f.appointment = f.appointment
+}
 
 // A resource must be available before it can be booked.
+fact ResourceAvailabilityBeforeBooking {
+  all r: Resource |
+    r.isAvailable = 1 => some a: Appointment | a.resources = r
+}
