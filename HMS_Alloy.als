@@ -2,6 +2,8 @@
 one sig NationalHolidays {
   dates: set String
 }
+abstract sig CaseStatus {}
+one sig Open, Closed extends CaseStatus {}
 
 abstract sig Person {
   id: one String,
@@ -18,7 +20,8 @@ sig Patient extends Person {
   bill: some Bill,
   ehr: one EHR,
   dischargeSummary: lone DischargeSummary,
-  bed: lone Bed
+  bed: lone Bed,
+  caseStatus: one CaseStatus
 }
 
 sig Staff extends Person {
@@ -128,6 +131,7 @@ sig Shift {
   id: one Int,
   date: one String,
   type: one String,
+  location: one String, 
   startingTime: one String,
   endingTime: one String,
   timeSlot: set TimeSlot,
@@ -135,8 +139,14 @@ sig Shift {
 }
 
 sig TimeSlot {
-  startingTime: one String,
-  endingTime: one String
+  startingTime: one Time,
+  endingTime: one Time
+}
+
+// Time.
+sig Time {
+  hour: one Int,
+  minute: one Int
 }
 
 sig OperationTheater {
@@ -145,8 +155,10 @@ sig OperationTheater {
 
 sig Remainder {
   id: one Int,
+  sentTime: one Time,
   remainderOfAppointment: one Appointment
 }
+
 
 sig Feedback {
   id: one Int,
@@ -224,7 +236,6 @@ fact AppointmentAllowedOnlyIfDoctorAvailable {
     some s: a.doctor.assignedShifts | s.date = a.date
 }
 
-
 // If a patient cancels an appointment, the time slot should become available again.
 fact CancelledAppointmentFreesTimeSlot {
   all ts: TimeSlot |
@@ -232,9 +243,7 @@ fact CancelledAppointmentFreesTimeSlot {
       all a2: Appointment | a2.timeSlot = ts implies a2.status = "cancelled"
 }
 
-
-//  If the medicine stock is less than the minimum threshold, 
-// notify the pharmacy admin.
+//  If the medicine stock is less than the minimum threshold, notify the pharmacy admin.
 fact GenerateAlertWhenStockLow {
   all m: Medicine |
     m.stock < m.threshold =>
@@ -245,6 +254,58 @@ fact GenerateAlertWhenStockLow {
           a.sentTo = s
 }
 
+// If a staff member is marked on leave, they cannot be assigned to duties that day.
+fact StaffOnLeaveNotAssignedToShifts {
+  all s: Staff |
+    s.isOnLeave = 1 =>
+      all sh: Shift |
+        sh in s.assignedShifts implies no sh
+}
 
+// If the doctor has more than 25 patients in a day, no further appointments can be scheduled.
+fact PerDayMax25PatientsPerDoctor {
+  all d: Doctor, day: String |
+    #({ a: Appointment | a.doctor = d and a.date = day }.patient) <= 25
+}
 
-// Businees Constraints
+// Feedback can only be submitted after the appointment status is “Completed.”
+fact FeedbackOnlyAfterCompletedAppointment {
+  all f: Feedback |
+    f.appointment.status = "Completed"
+}
+
+// Appointment reminders must be sent 24 hours before the scheduled time.
+fact remainderForAppointment {
+  all a: Appointment | 
+    some a.remainder => {
+      let r = a.remainder,
+          apptTime = a.timeSlot.startingTime,
+          sentTime = r.sentTime |
+        apptTime.hour - sentTime.hour = 24 and
+        apptTime.minute = sentTime.minute
+    }
+}
+
+// If a patient receives any treatment, then a billing entry must be automatically generated for the services used.
+fact automaticBillGeneration {
+  all p: Patient |
+    all a: p.appointment |
+      some b: Bill | b.appointment = a
+}
+
+// Discharge summary must be uploaded before closing a patient case file.
+fact DischargeSummaryBeforeCaseClosure {
+  all p: Patient |
+    p.caseStatus = Closed implies p.dischargeSummary != none and p.dischargeSummary.patient = p
+}
+
+// If a patient is assigned to the ICU, the system must auto-assign a nurse.
+fact AutoAssignedNurseToICUPatient {
+  all p: Patient |
+    p.bed.isOccupied = 1 and p.bed.location = "ICU" implies
+      some n: Staff |
+        n.type = "Nurse" and
+        some s: n.assignedShifts |
+          s.date = p.appointment.date and
+          s.location = "ICU"
+}
