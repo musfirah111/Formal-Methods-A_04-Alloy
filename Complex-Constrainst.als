@@ -122,8 +122,8 @@ sig Shift {
   id: one Int,
   date: one String,
   type: one String,
-  startingTime: one String,
-  endingTime: one String,
+  startingTime: one Time,
+  endingTime: one Time,
   timeSlot: set TimeSlot,
   assignedTo: set Staff
 }
@@ -214,8 +214,8 @@ fact DoctorAppointmentsHave10MinGap {
 fact AppointmentsInDoctorsWorkingHours {
     all a: Appointment |
     some s: a.doctor.assignedShifts | (s.date = a.date) implies
-    (timeInMinutes[a.timeSlot.startingTime] >= timeInMinutes[a.startingTime] and
-    timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[a.endingTime])
+    (timeInMinutes[a.timeSlot.startingTime] >= timeInMinutes[s.startingTime] and
+    timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[s.endingTime])
 }
 
 // A nurse cannot be scheduled for night and morning shifts on the same day.
