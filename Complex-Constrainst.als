@@ -1,3 +1,10 @@
+
+one sig NationalHolidays {
+  dates: set String
+}
+abstract sig CaseStatus {}
+one sig Open, Closed extends CaseStatus {}
+
 abstract sig Person {
   id: one String,
   name: one String,
@@ -13,7 +20,8 @@ sig Patient extends Person {
   bill: some Bill,
   ehr: one EHR,
   dischargeSummary: lone DischargeSummary,
-  bed: lone Bed
+  bed: lone Bed,
+  caseStatus: one CaseStatus
 }
 
 sig Staff extends Person {
@@ -73,7 +81,8 @@ sig Bed {
   id: one Int,
   location: one String,
   isOccupied: one Int,
-  assignedPatient: lone Patient
+  assignedPatient: lone Patient,
+  type: one String //"General Ward", "ICU", "CCU"
 }
 
 sig Surgery {
@@ -122,6 +131,7 @@ sig Shift {
   id: one Int,
   date: one String,
   type: one String,
+  location: one String, 
   startingTime: one Time,
   endingTime: one Time,
   timeSlot: set TimeSlot,
@@ -133,14 +143,22 @@ sig TimeSlot {
   endingTime: one Time
 }
 
+// Time.
+sig Time {
+  hour: one Int,
+  minute: one Int
+}
+
 sig OperationTheater {
   id: one Int
 }
 
 sig Remainder {
   id: one Int,
+  sentTime: one Time,
   remainderOfAppointment: one Appointment
 }
+
 
 sig Feedback {
   id: one Int,
@@ -149,37 +167,11 @@ sig Feedback {
   appointment: one Appointment
 }
 
-// Time.
-sig Time {
-  hour: one Int,
-  minute: one Int
+sig LowStockAlert {
+  medicine: one Medicine,
+  generatedOn: one String,
+  sentTo: one Staff
 }
-
-//Simple Structural:
-fact DoctorCanHaveMultiplePatients {
-  all d: Doctor |
-    #({ p: Patient | some a: d.appointments | a.patient = p }) > 1
-}
-
-fact ResourceAssignedToOnePatient {
-  all r1, r2: Resource |
-    r1 != r2 and r1.appointment.patient != r2.appointment.patient => r1 != r2
-}
-
-fact EachAppointmentLinkedToDoctorAndPatient {
-  all a: Appointment |
-    one a.doctor and one a.patient
-}
-
-fact PrescriptionsAreIssuedByDoctors {
-  all p: Prescription |
-    one p.appointment.doctor
-}
-
-fact BillLinkedToOnePatient {
-  all b: Bill | one b.appointment.patient
-}
-
 // Fact Syntax.
 /*
 fact NameOfTheFact {
@@ -243,4 +235,13 @@ fact NoMorningAndNightShiftForSameNurse {
         nurse in s1.assignedTo and 
         nurse in s2.assignedTo // ... is assigned to both shifts.
 }
+
+// A patient’s EHR can only be modified by the assigned doctor.
+fact OnlyAssignedDoctorCanModifyEHR {
+  all a: Appointment |
+    a.patient.ehr.patient = a.patient and
+    a.doctor in Doctor
+}
+
+// If a patient is transferred from the ward to the ICU, the previous bed must be released.
 
