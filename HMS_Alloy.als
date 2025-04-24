@@ -64,7 +64,8 @@ sig Bill {
 
 sig LabTest {
   id: one Int,
-  appointment: one Appointment
+  appointment: one Appointment,
+  testCost: one Int
 }
 
 sig EHR {
@@ -74,7 +75,8 @@ sig EHR {
   pastSurgeries: set Surgery,
   labTests: set LabTest,
   allergies: set Allergy,
-  patient: one Patient
+  patient: one Patient,
+  receivedtreatment: one Int
 }
 
 sig Bed {
@@ -109,7 +111,8 @@ sig Medicine {
   name: one String,
   stock: one Int,
   threshold: one Int,
-  allergens: set String
+  allergens: set String,
+  medicineCost: one Int
 }
 
 sig Allergy {
@@ -124,6 +127,7 @@ sig Allergy {
 sig Resource {
   type: one String,
   isAvailable: one Int,
+  resourceCost: one Int,
   appointment: one Appointment
 }
 
@@ -132,8 +136,8 @@ sig Shift {
   date: one String,
   type: one String,  //Doctor, Nurse, QualityAssuranceTeam
   location: one String, 
-  startingTime: one String,
-  endingTime: one String,
+  startingTime: one Time,
+  endingTime: one Time,
   timeSlot: set TimeSlot,
   assignedTo: set Staff
 }
@@ -317,7 +321,8 @@ fact remainderForAppointment {
 fact automaticBillGeneration {
   all p: Patient |
     all a: p.appointment |
-      some b: Bill | b.appointment = a
+      one e: EHR | e.patient = p and e.receivedtreatment = 1 implies
+        some b: Bill | b.appointment = a
 }
 
 // Discharge summary must be uploaded before closing a patient case file.
@@ -336,3 +341,32 @@ fact AutoAssignedNurseToICUPatient {
           s.date = p.appointment.date and
           s.location = "ICU"
 }
+
+
+
+
+
+// Assertion to Verify
+
+// All patients must have at least one EHR entry.
+fact AtleastOneEHREntry {
+  all p: Patient |
+    some ehr: EHR | ehr.patient = p
+}
+
+
+// All bills must match the sum of resources, lab tests, and medication costs.
+fact BillMatchTheSum {
+  // all b: Bill | 
+  //   b.totalAmount = let totalSum |
+  //   totalSum = r: Resource |
+  //   r.resourceCost + l: LabTest |
+  //   l.testCost + m: Medicine |
+  //   m.medicineCost
+}
+
+// Meds can’t be issued without a prescription.
+
+// Feedback must be linked to completed appointments.
+
+// A resource must be available before it can be booked.
