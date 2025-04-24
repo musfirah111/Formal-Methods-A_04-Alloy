@@ -161,6 +161,16 @@ sig LowStockAlert {
   sentTo: one Staff
 }
 
+// Time.
+sig Time {
+  hour: one Int,
+  minute: one Int
+}
+
+fun timeInMinutes[t: Time]: Int {
+  mul[t.hour, 60] + t.minute
+}
+
 
 //Simple Structural:
 //A doctor can be assigned to multiple patients.
@@ -215,6 +225,21 @@ fact DischargeSummaryReviewdAndSignedBySeniorDoctor {
 }
 
 //Emergency appointments override schedules.
+fact EmergencyAppointmentsOverRideScdedules {
+  all a1, a2: Appointment |
+    a1 != a2 and 
+    a1.date = a2.date and 
+    a1.timeSlot = a2.timeSlot and 
+    a1.doctor = a2.doctor and
+    a1.type != "Emergency" and
+    a2.type != "Emergency" =>
+      a1.status = "Cancelled" or a2.status = "Cancelled"
+}
+
+//Poor feedback triggers a review.
+fact PoorFeedbackTriggersReview {
+  
+}
 
 
 // Moderate Logic Rules
