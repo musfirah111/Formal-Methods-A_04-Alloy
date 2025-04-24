@@ -267,11 +267,42 @@ fact PharmacyDispatchPrescriptionIDMatch {
 }
 
 // 8. Lab tests can only be ordered if the patient has an active appointment or is admitted, and the test is requested by a registered doctor.
-
-
+fact LabTestOrderConditions {
+  all lt: LabTest |
+    (lt.appointment.status = "Active" or lt.appointment.patient.appointment != none) and // Admitted = has a bed.
+    lt.appointment.doctor in Doctor // Ensure that lab tests are ordered only by registered doctors.
+}
 
 // 9. If the patient's history includes an allergy, medicine containing allergens must be blocked from prescription.
-
-
+fact BlockAllergenMedicineFromPrescription {
+  all p: Patient, m: Medicine |
+    some a: p.ehr.allergies | 
+    a.name in m.allergens implies 
+    not (m in p.prescription.medicines)
+}
 
 // 10. Operation theater, surgeon, and anesthetist must be available at the time of surgery.
+// 10. Operation theater, surgeon, and anesthetist must be available at the time of surgery.
+fact OperationTheaterAndStaffAvailability {
+  all s: Surgery |
+    some ot: OperationTheater | ot.id = s.assignedOT and
+    some surgeon: Doctor | surgeon = s.appointment.doctor and
+    some anesthetist: Staff | anesthetist = s.anesthetist and
+    some a: s.appointment.timeSlot |
+      // 1. Check if the operation theater is available during the surgery time.
+      timeInMinutes[a.startingTime] >= timeInMinutes[ot.startingTime] and
+      timeInMinutes[a.endingTime] <= timeInMinutes[ot.endingTime] and
+
+      // 2. Check if the surgeon is available during the surgery time slot.
+      some surgeonShift: surgeon.assignedShifts |
+        surgeonShift.date = a.date and
+        timeInMinutes[a.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
+        timeInMinutes[a.endingTime] <= timeInMinutes[surgeonShift.endingTime] and
+
+      // 3. Check if the anesthetist is available during the surgery time slot.
+      some anesthetistShift: anesthetist.assignedShifts |
+        anesthetistShift.date = a.date and
+        timeInMinutes[a.startingTime] >= timeInMinutes[anesthetistShift.startingTime] and
+        timeInMinutes[a.endingTime] <= timeInMinutes[anesthetistShift.endingTime]
+}
+
