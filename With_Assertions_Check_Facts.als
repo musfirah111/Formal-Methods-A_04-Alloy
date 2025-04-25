@@ -90,7 +90,7 @@ sig Bed {
 sig Surgery {
   id: one Int,
   anesthetist: one Staff,
-  assignedOT: one String,
+  assignedOT: one Int,
   appointment: one Appointment
 }
 
@@ -586,6 +586,53 @@ assert LabTestOrderConditionsAssertion {
 }
 check LabTestOrderConditionsAssertion for 5
 
+// 9. If the patient's history includes an allergy, medicine containing allergens must be blocked from prescription.
+fact BlockAllergenMedicineFromPrescription {
+  all p: Patient, m: Medicine |
+    some a: p.ehr.allergies | 
+    a.name in m.allergens implies 
+    not (m in p.prescription.medicines)
+}
+
+// Assertion to verify that medicines containing allergens are blocked from prescription
+assert BlockAllergenMedicineFromPrescriptionAssertion {
+  all p: Patient, m: Medicine |
+    some a: p.ehr.allergies | 
+    a.name in m.allergens implies 
+    not (m in p.prescription.medicines)
+}
+check BlockAllergenMedicineFromPrescriptionAssertion for 5
+
+// 10. Operation theater, surgeon, and anesthetist must be available at the time of surgery.
+fact OperationTheaterAndStaffAvailability {
+  all s: Surgery |
+    // Basic availability checks
+    some ot: OperationTheater | ot.id = s.assignedOT and
+    some surgeon: Doctor | surgeon = s.appointment.doctor and
+    some an: Staff | an = s.anesthetist and
+    
+    // Simplified time slot checks
+    some surgeonShift: surgeon.assignedShifts |
+      surgeonShift.date = s.appointment.date and
+      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
+      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[surgeonShift.endingTime]
+}
+
+// Assertion with simplified constraints
+assert OperationTheaterAndStaffAvailabilityAssertion {
+  all s: Surgery |
+    // Basic availability checks
+    some ot: OperationTheater | ot.id = s.assignedOT and
+    some surgeon: Doctor | surgeon = s.appointment.doctor and
+    some an: Staff | an = s.anesthetist and
+    
+    // Simplified time slot checks
+    some surgeonShift: surgeon.assignedShifts |
+      surgeonShift.date = s.appointment.date and
+      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
+      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[surgeonShift.endingTime]
+}
+check OperationTheaterAndStaffAvailabilityAssertion for 5
 
 //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<Business or Real World Rules (5 - 10)>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
