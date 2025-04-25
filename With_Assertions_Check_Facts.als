@@ -253,7 +253,7 @@ check BillLinkedToOnePatientAssertion for 5
 
 //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<Business or Real World Rules (5 - 10)>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-//Appointments cannot be scheduled on national holidays except in emergencies.
+//1. Appointments cannot be scheduled on national holidays except in emergencies.
 fact NoAppointmentOnNationalHolidaysExceptEmergency{
    all a: Appointment | a.date in NationalHolidays.dates implies a.type = "Emergency"
 }
@@ -264,3 +264,80 @@ assert NoAppointmentOnNationalHolidaysExceptEmergencyAssertion {
     a.date in NationalHolidays.dates implies a.type = "Emergency"
 }
 check NoAppointmentOnNationalHolidaysExceptEmergencyAssertion for 5
+
+//2. ICU patients must have 24/7 nursing.
+fact ICUPatientsHaveNursing24_7{
+  all p: Patient |
+    p.bed != none and p.bed.type = "ICU" implies
+      some s1, s2, s3: Shift, n1, n2, n3: Staff |
+        n1.type = "Nurse" and n1 in s1.assignedTo and
+        n2.type = "Nurse" and n2 in s2.assignedTo and
+        n3.type = "Nurse" and n3 in s3.assignedTo
+}
+
+assert ICUPatientsHaveNursing24_7Assertion {
+  all p: Patient |
+    p.bed != none and p.bed.type = "ICU" implies
+      some s1, s2, s3: Shift, n1, n2, n3: Staff |
+        n1.type = "Nurse" and n1 in s1.assignedTo and
+        n2.type = "Nurse" and n2 in s2.assignedTo and
+        n3.type = "Nurse" and n3 in s3.assignedTo
+}
+
+check ICUPatientsHaveNursing24_7Assertion for 5
+
+// 3. A discharge summary must be reviewed and signed by a senior doctor.
+fact DischargeSummaryReviewdAndSignedBySeniorDoctor {
+  all ds: DischargeSummary |
+    ds.signedBy.rank = "Senior"
+}
+
+// Assertion to verify that all discharge summaries are signed by senior doctors
+assert DischargeSummarySignedBySeniorDoctorAssertion {
+  all ds: DischargeSummary |
+    ds.signedBy.rank = "Senior"
+}
+check DischargeSummarySignedBySeniorDoctorAssertion for 5
+
+//4. Emergency appointments override schedules.
+fact EmergencyAppointmentsOverRideScdedules {
+  all a1, a2: Appointment |
+    a1 != a2 and 
+    a1.date = a2.date and 
+    a1.timeSlot = a2.timeSlot and 
+    a1.doctor = a2.doctor and
+    a1.type != "Emergency" and
+    a2.type != "Emergency" =>
+      a1.status = "Cancelled" or a2.status = "Cancelled"
+}
+
+// Assertion for Emergency appointments overriding schedules
+assert EmergencyAppointmentsOverRideScdedulesAssertion {
+  all a1, a2: Appointment |
+    a1 != a2 and 
+    a1.date = a2.date and 
+    a1.timeSlot = a2.timeSlot and 
+    a1.doctor = a2.doctor and
+    a1.type != "Emergency" and
+    a2.type != "Emergency" =>
+      a1.status = "Cancelled" or a2.status = "Cancelled"
+}
+check EmergencyAppointmentsOverRideScdedulesAssertion for 5
+
+
+//5. Poor feedback triggers a review.
+fact PoorFeedbackTriggersReview {
+   all f: Feedback |
+    f.rating < 3 => {
+      some qa: Staff | qa.type = "QualityAssuranceTeam" and qa in f.notifiedTeam
+    }
+}
+
+// Assertion for Poor feedback triggering review
+assert PoorFeedbackTriggersReviewAssertion {
+  all f: Feedback |
+    f.rating < 3 => {
+      some qa: Staff | qa.type = "QualityAssuranceTeam" and qa in f.notifiedTeam
+    }
+}
+check PoorFeedbackTriggersReviewAssertion for 5
