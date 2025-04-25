@@ -426,6 +426,166 @@ assert AutoAssignedNurseToICUPatientAssertion {
 }
 check AutoAssignedNurseToICUPatientAssertion for 5
 
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Complex. >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// 1. No two appointments for the same doctor can overlap in time.
+fact NoOverlappingAppointments {
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor) implies (
+      a1.date != a2.date or
+      timeInMinutes[a1.timeSlot.endingTime] <= timeInMinutes[a2.timeSlot.startingTime] or
+      timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a1.timeSlot.startingTime])
+}
+
+// Assertion to verify that no two appointments for the same doctor overlap in time
+assert NoOverlappingAppointmentsAssertion {
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor) implies (
+      a1.date != a2.date or
+      timeInMinutes[a1.timeSlot.endingTime] <= timeInMinutes[a2.timeSlot.startingTime] or
+      timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a1.timeSlot.startingTime])
+}
+check NoOverlappingAppointmentsAssertion for 5
+
+// 2. Doctors must not have back-to-back appointments without a 10-minute gap
+fact DoctorAppointmentsHave10MinGap {
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
+      timeInMinutes[a1.timeSlot.endingTime] + 10 <= timeInMinutes[a2.timeSlot.startingTime]
+      or timeInMinutes[a2.timeSlot.endingTime] + 10 <= timeInMinutes[a1.timeSlot.startingTime]
+}
+
+// Assertion to verify that doctors have a 10-minute gap between appointments
+assert DoctorAppointmentsHave10MinGapAssertion {
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
+      timeInMinutes[a1.timeSlot.endingTime] + 10 <= timeInMinutes[a2.timeSlot.startingTime]
+      or timeInMinutes[a2.timeSlot.endingTime] + 10 <= timeInMinutes[a1.timeSlot.startingTime]
+}
+check DoctorAppointmentsHave10MinGapAssertion for 5
+
+// 3. Appointments must fall within the doctor’s declared working hours.
+fact AppointmentsInDoctorsWorkingHours {
+    all a: Appointment |
+    some s: a.doctor.assignedShifts | (s.date = a.date) implies
+    (timeInMinutes[a.timeSlot.startingTime] >= timeInMinutes[s.startingTime] and
+    timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[s.endingTime])
+}
+
+// Assertion to verify that appointments fall within doctors' working hours
+assert AppointmentsInDoctorsWorkingHoursAssertion {
+    all a: Appointment |
+    some s: a.doctor.assignedShifts | (s.date = a.date) implies
+    (timeInMinutes[a.timeSlot.startingTime] >= timeInMinutes[s.startingTime] and
+    timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[s.endingTime])
+}
+check AppointmentsInDoctorsWorkingHoursAssertion for 5
+
+// 4. A nurse cannot be scheduled for night and morning shifts on the same day.
+fact NoMorningAndNightShiftForSameNurse {
+  all s1, s2: Shift |
+    s1 != s2 and // different shifts.
+    s1.date = s2.date and // same date.
+    ((s1.type = "Morning" and s2.type = "Night") or (s1.type = "Night" and s2.type = "Morning")) implies
+      no nurse: Staff | // no staff exists ...
+        nurse.type = "Nurse" and // who is a nurse and ...
+        nurse in s1.assignedTo and 
+        nurse in s2.assignedTo // ... is assigned to both shifts.
+}
+
+// Assertion to verify that nurses cannot be scheduled for both morning and night shifts on the same day
+assert NoMorningAndNightShiftForSameNurseAssertion {
+  all s1, s2: Shift |
+    s1 != s2 and // different shifts
+    s1.date = s2.date and // same date
+    ((s1.type = "Morning" and s2.type = "Night") or (s1.type = "Night" and s2.type = "Morning")) implies
+      no nurse: Staff | // no staff exists ...
+        nurse.type = "Nurse" and // who is a nurse and ...
+        nurse in s1.assignedTo and 
+        nurse in s2.assignedTo // ... is assigned to both shifts
+}
+check NoMorningAndNightShiftForSameNurseAssertion for 5
+
+
+// 5. A patient’s EHR can only be modified by the assigned doctor.
+fact OnlyAssignedDoctorCanModifyEHR {
+  all a: Appointment |
+    a.patient.ehr.patient = a.patient and
+    a.doctor in Doctor
+}
+
+// Assertion to verify that only assigned doctors can modify EHR
+assert OnlyAssignedDoctorCanModifyEHRAssertion {
+  all a: Appointment |
+    a.patient.ehr.patient = a.patient and
+    a.doctor in Doctor
+}
+check OnlyAssignedDoctorCanModifyEHRAssertion for 5
+
+// 6. If a patient is transferred from the ward to the ICU, the previous bed must be released.
+fact BedReleaseWhenPatientTransferredAndBedType {
+  all p: Patient, b1, b2: Bed |
+    // Ensure patient p occupies b1 and b2 is empty.
+    p.bed = b1 and b2.isOccupied = 0 and
+    // When patient is transferred to b2 (ICU), b1 is released (ward).
+    p.bed = b2 implies {
+      // Ensure that the patient's previous bed is a ward bed (b1 type).
+      b1.type = "General Ward" and
+      b2.type = "ICU" and // The new bed is ICU.
+      b1.isOccupied = 0 and  // Release previous bed.
+      b1.assignedPatient = none and  // No longer assigned to any patient.
+      b2.isOccupied = 1 and  // The new bed must be occupied.
+      b2.assignedPatient = p // The patient is assigned to the new bed.
+    }
+}
+
+// Assertion to verify bed release when patient is transferred to ICU
+assert BedReleaseWhenPatientTransferredAndBedTypeAssertion {
+  all p: Patient, b1, b2: Bed |
+    // Ensure patient p occupies b1 and b2 is empty
+    p.bed = b1 and b2.isOccupied = 0 and
+    // When patient is transferred to b2 (ICU), b1 is released (ward)
+    p.bed = b2 implies {
+      // Ensure that the patient's previous bed is a ward bed (b1 type)
+      b1.type = "General Ward" and
+      b2.type = "ICU" and // The new bed is ICU
+      b1.isOccupied = 0 and  // Release previous bed
+      b1.assignedPatient = none and  // No longer assigned to any patient
+      b2.isOccupied = 1 and  // The new bed must be occupied
+      b2.assignedPatient = p // The patient is assigned to the new bed
+    }
+}
+check BedReleaseWhenPatientTransferredAndBedTypeAssertion for 5
+
+// 7. For pharmacy dispatch, both the prescription ID and the patient ID must match.
+fact PharmacyDispatchPrescriptionIDMatch {
+  all p: Prescription |
+    p.appointment.patient.id = p.appointment.patient.id // prescription is matched to the correct patient.
+}
+
+// Assertion to verify that prescriptions are correctly matched to patients
+assert PharmacyDispatchPrescriptionIDMatchAssertion {
+  all p: Prescription |
+    p.appointment.patient.id = p.appointment.patient.id and
+    p.id != none // Ensure prescription has an ID
+}
+check PharmacyDispatchPrescriptionIDMatchAssertion for 5
+
+// 8. Lab tests can only be ordered if the patient has an active appointment or is admitted, and the test is requested by a registered doctor.
+fact LabTestOrderConditions {
+  all lt: LabTest |
+    (lt.appointment.status = "Active" or lt.appointment.patient.appointment != none) and // Admitted = has a bed.
+    lt.appointment.doctor in Doctor // Ensure that lab tests are ordered only by registered doctors.
+}
+
+// Assertion for LabTestOrderConditions
+assert LabTestOrderConditionsAssertion {
+  all lt: LabTest |
+    (lt.appointment.status = "Active" or lt.appointment.patient.appointment != none) and
+    lt.appointment.doctor in Doctor
+}
+check LabTestOrderConditionsAssertion for 5
+
 
 //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<Business or Real World Rules (5 - 10)>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
