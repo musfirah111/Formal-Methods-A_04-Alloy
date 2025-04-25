@@ -192,6 +192,14 @@ fact DoctorCanHaveMultiplePatients {
     #({ p: Patient | some a: d.appointments | a.patient = p }) > 1
 }
 
+assert DoctorCanHaveMultiplePatientsAssertion {
+  all d: Doctor |
+    #({ p: Patient | some a: d.appointments | a.patient = p }) > 1
+}
+
+check DoctorCanHaveMultiplePatientsAssertion for 5
+
+
 //A resource can be assigned to only one patient at a time.
 fact ResourceAssignedToOnePatient {
   all r1, r2: Resource |
@@ -485,3 +493,12 @@ fact OperationTheaterAndStaffAvailability {
       timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[anesthetistShift.startingTime] and
       timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[anesthetistShift.endingTime]
 }
+
+
+
+// Assertion:
+assert DoctorCannotHaveMultiplePatients {
+  all d: Doctor |
+    #({ p: Patient | some a: d.appointments | a.patient = p }) <= 1
+}
+check DoctorCannotHaveMultiplePatients for 5
