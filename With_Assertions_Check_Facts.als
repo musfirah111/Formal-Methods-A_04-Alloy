@@ -251,6 +251,182 @@ assert BillLinkedToOnePatientAssertion {
 }
 check BillLinkedToOnePatientAssertion for 5
 
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<Moderate Logic Rules>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+//1. Appointments are only allowed if a doctor is available.
+fact AppointmentAllowedOnlyIfDoctorAvailable {
+  all a: Appointment |
+    some s: a.doctor.assignedShifts | s.date = a.date
+}
+
+// Assertion for AppointmentAllowedOnlyIfDoctorAvailable
+assert AppointmentAllowedOnlyIfDoctorAvailableAssertion {
+  all a: Appointment |
+    some s: a.doctor.assignedShifts | s.date = a.date
+}
+check AppointmentAllowedOnlyIfDoctorAvailableAssertion for 5
+
+//2. If a patient cancels an appointment, the time slot should become available again.
+fact CancelledAppointmentFreesTimeSlot {
+  all ts: TimeSlot |
+    some a: Appointment | a.status = "cancelled" and a.timeSlot = ts =>
+      all a2: Appointment | a2.timeSlot = ts implies a2.status = "cancelled"
+}
+
+// Assertion for CancelledAppointmentFreesTimeSlot
+assert CancelledAppointmentFreesTimeSlotAssertion {
+  all ts: TimeSlot |
+    some a: Appointment | a.status = "cancelled" and a.timeSlot = ts =>
+      all a2: Appointment | a2.timeSlot = ts implies a2.status = "cancelled"
+}
+check CancelledAppointmentFreesTimeSlotAssertion for 5
+
+//3. If the medicine stock is less than the minimum threshold, notify the pharmacy admin.
+fact GenerateAlertWhenStockLow {
+  all m: Medicine |
+    m.stock < m.threshold =>
+      some a: LowStockAlert |
+        a.medicine = m and
+        some s: Staff |
+          s.type = "PharmacyAdmin" and
+          a.sentTo = s
+}
+
+// Assertion for GenerateAlertWhenStockLow
+assert GenerateAlertWhenStockLowAssertion {
+  all m: Medicine |
+    m.stock < m.threshold =>
+      some a: LowStockAlert |
+        a.medicine = m and
+        some s: Staff |
+          s.type = "PharmacyAdmin" and
+          a.sentTo = s
+}
+check GenerateAlertWhenStockLowAssertion for 5
+
+
+//4. If a staff member is marked on leave, they cannot be assigned to duties that day.
+fact StaffOnLeaveNotAssignedToShifts {
+  all s: Staff |
+    s.isOnLeave = 1 =>
+      all sh: Shift |
+        sh in s.assignedShifts implies no sh
+}
+
+// Assertion for StaffOnLeaveNotAssignedToShifts
+assert StaffOnLeaveNotAssignedToShiftsAssertion {
+  all s: Staff |
+    s.isOnLeave = 1 =>
+      all sh: Shift |
+        sh in s.assignedShifts implies no sh
+}
+check StaffOnLeaveNotAssignedToShiftsAssertion for 5
+
+//5. If the doctor has more than 25 patients in a day, no further appointments can be scheduled.
+fact PerDayMax25PatientsPerDoctor {
+  all d: Doctor, day: String |
+    #({ a: Appointment | a.doctor = d and a.date = day }.patient) <= 25
+}
+
+// Assertion for PerDayMax25PatientsPerDoctor
+assert PerDayMax25PatientsPerDoctorAssertion {
+  all d: Doctor, day: String |
+    #({ a: Appointment | a.doctor = d and a.date = day }.patient) <= 25
+}
+check PerDayMax25PatientsPerDoctorAssertion for 5
+
+//6. Feedback can only be submitted after the appointment status is “Completed.”
+fact FeedbackOnlyAfterCompletedAppointment {
+  all f: Feedback |
+    f.appointment.status = "Completed"
+}
+
+// Assertion for FeedbackOnlyAfterCompletedAppointment
+assert FeedbackOnlyAfterCompletedAppointmentAssertion {
+  all f: Feedback |
+    f.appointment.status = "Completed"
+}
+check FeedbackOnlyAfterCompletedAppointmentAssertion for 5
+
+//7. Appointment reminders must be sent 24 hours before the scheduled time.
+fact remainderForAppointment {
+  all a: Appointment | 
+    some a.remainder => {
+      let r = a.remainder,
+          apptTime = a.timeSlot.startingTime,
+          sentTime = r.sentTime |
+        apptTime.hour - sentTime.hour = 24 and
+        apptTime.minute = sentTime.minute
+    }
+}
+
+// Assertion for remainderForAppointment
+assert remainderForAppointmentAssertion {
+  all a: Appointment | 
+    some a.remainder => {
+      let r = a.remainder,
+          apptTime = a.timeSlot.startingTime,
+          sentTime = r.sentTime |
+        apptTime.hour - sentTime.hour = 24 and
+        apptTime.minute = sentTime.minute
+    }
+}
+check remainderForAppointmentAssertion for 5
+
+//8. If a patient receives any treatment, then a billing entry must be automatically generated for the services used.
+fact automaticBillGeneration {
+  all p: Patient |
+    all a: p.appointment |
+      one e: EHR | e.patient = p and e.receivedtreatment = 1 implies
+        some b: Bill | b.appointment = a
+}
+
+// Assertion for automaticBillGeneration
+assert automaticBillGenerationAssertion {
+  all p: Patient |
+    all a: p.appointment |
+      one e: EHR | e.patient = p and e.receivedtreatment = 1 implies
+        some b: Bill | b.appointment = a
+}
+check automaticBillGenerationAssertion for 5
+
+//9. Discharge summary must be uploaded before closing a patient case file.
+fact DischargeSummaryBeforeCaseClosure {
+  all p: Patient |
+    p.caseStatus = Closed implies p.dischargeSummary != none and p.dischargeSummary.patient = p
+}
+
+// Assertion for DischargeSummaryBeforeCaseClosure
+assert DischargeSummaryBeforeCaseClosureAssertion {
+  all p: Patient |
+    p.caseStatus = Closed implies p.dischargeSummary != none and p.dischargeSummary.patient = p
+}
+check DischargeSummaryBeforeCaseClosureAssertion for 5
+
+//10. If a patient is assigned to the ICU, the system must auto-assign a nurse.
+fact AutoAssignedNurseToICUPatient {
+  all p: Patient |
+    p.bed.isOccupied = 1 and p.bed.location = "ICU" implies
+      some n: Staff |
+        n.type = "Nurse" and
+        some s: n.assignedShifts |
+          s.date = p.appointment.date and
+          s.location = "ICU"
+}
+
+// Assertion for AutoAssignedNurseToICUPatient
+assert AutoAssignedNurseToICUPatientAssertion {
+  all p: Patient |
+    p.bed.isOccupied = 1 and p.bed.location = "ICU" implies
+      some n: Staff |
+        n.type = "Nurse" and
+        some s: n.assignedShifts |
+          s.date = p.appointment.date and
+          s.location = "ICU"
+}
+check AutoAssignedNurseToICUPatientAssertion for 5
+
+
 //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<Business or Real World Rules (5 - 10)>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 //1. Appointments cannot be scheduled on national holidays except in emergencies.
@@ -341,3 +517,81 @@ assert PoorFeedbackTriggersReviewAssertion {
     }
 }
 check PoorFeedbackTriggersReviewAssertion for 5
+
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Assertion to Verify >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// 1. All patients must have at least one EHR entry.
+fact AtleastOneEHREntry {
+  all p: Patient |
+    some ehr: EHR | ehr.patient = p
+}
+
+// Assertion for AtleastOneEHREntry
+assert AtleastOneEHREntryAssertion {
+  all p: Patient |
+    some ehr: EHR | ehr.patient = p
+}
+check AtleastOneEHREntryAssertion for 5
+
+// All bills must match the sum of resources, lab tests, and medication costs.
+fact BillMatchTheSum {
+  all b: Bill | 
+    let a = b.appointment |
+    let total_Resources_Cost = sum r: a.resources | r.resourceCost |
+    let total_LabTests_Cost = sum l: a.labTests | l.testCost |
+    let total_Medicines_Cost = sum m: { m: Medicine | some pr: b.appointment.patient.prescription 
+      | pr.appointment = a and m in pr.medicines } | m.medicineCost |
+    b.totalAmount = total_Resources_Cost + total_LabTests_Cost + total_Medicines_Cost
+}
+
+// Assertion for BillMatchTheSum
+assert BillMatchTheSumAssertion {
+  all b: Bill | 
+    let a = b.appointment |
+    let total_Resources_Cost = sum r: a.resources | r.resourceCost |
+    let total_LabTests_Cost = sum l: a.labTests | l.testCost |
+    let total_Medicines_Cost = sum m: { m: Medicine | some pr: b.appointment.patient.prescription 
+      | pr.appointment = a and m in pr.medicines } | m.medicineCost |
+    b.totalAmount = total_Resources_Cost + total_LabTests_Cost + total_Medicines_Cost
+}
+check BillMatchTheSumAssertion for 5
+
+// Meds can’t be issued without a prescription.
+fact MedsCannotBeIssuedWithoutPrescription {
+  all m: Medicine |
+    some p: Prescription | p.medicines = m => some p
+}
+
+// Assertion for MedsCannotBeIssuedWithoutPrescription
+assert MedsCannotBeIssuedWithoutPrescriptionAssertion {
+  all m: Medicine |
+    some p: Prescription | p.medicines = m => some p
+}
+check MedsCannotBeIssuedWithoutPrescriptionAssertion for 5
+
+
+// Feedback must be linked to completed appointments.
+fact FeedbackLinkedToCompletedAppointments {
+  all f: Feedback |
+    f.appointment.status = "Completed" and f.appointment = f.appointment
+}
+
+// Assertion for FeedbackLinkedToCompletedAppointments
+assert FeedbackLinkedToCompletedAppointmentsAssertion {
+  all f: Feedback |
+    f.appointment.status = "Completed" and f.appointment = f.appointment
+}
+check FeedbackLinkedToCompletedAppointmentsAssertion for 5
+
+// A resource must be available before it can be booked.
+fact ResourceAvailabilityBeforeBooking {
+  all r: Resource |
+    r.isAvailable = 1 => some a: Appointment | a.resources = r
+}
+
+// Assertion for ResourceAvailabilityBeforeBooking
+assert ResourceAvailabilityBeforeBookingAssertion {
+  all r: Resource |
+    r.isAvailable = 1 => some a: Appointment | a.resources = r
+}
+check ResourceAvailabilityBeforeBookingAssertion for 5
