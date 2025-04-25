@@ -192,6 +192,14 @@ fact DoctorCanHaveMultiplePatients {
     #({ p: Patient | some a: d.appointments | a.patient = p }) > 1
 }
 
+assert DoctorCanHaveMultiplePatientsAssertion {
+  all d: Doctor |
+    #({ p: Patient | some a: d.appointments | a.patient = p }) > 1
+}
+
+check DoctorCanHaveMultiplePatientsAssertion for 5
+
+
 //A resource can be assigned to only one patient at a time.
 fact ResourceAssignedToOnePatient {
   all r1, r2: Resource |
@@ -344,9 +352,8 @@ fact AutoAssignedNurseToICUPatient {
 
 
 
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Assertion to Verify >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-
-// Assertion to Verify
 
 // All patients must have at least one EHR entry.
 fact AtleastOneEHREntry {
@@ -357,12 +364,13 @@ fact AtleastOneEHREntry {
 
 // All bills must match the sum of resources, lab tests, and medication costs.
 fact BillMatchTheSum {
-  // all b: Bill | 
-  //   b.totalAmount = let totalSum |
-  //   totalSum = r: Resource |
-  //   r.resourceCost + l: LabTest |
-  //   l.testCost + m: Medicine |
-  //   m.medicineCosts
+  all b: Bill | 
+    let a = b.appointment |
+    let total_Resources_Cost = sum r: a.resources | r.resourceCost |
+    let total_LabTests_Cost = sum l: a.labTests | l.testCost |
+    let total_Medicines_Cost = sum m: { m: Medicine | some pr: b.appointment.patient.prescription 
+      | pr.appointment = a and m in pr.medicines } | m.medicineCost |
+    b.totalAmount = total_Resources_Cost + total_LabTests_Cost + total_Medicines_Cost
 }
 
 // Meds can’t be issued without a prescription.
@@ -382,3 +390,119 @@ fact ResourceAvailabilityBeforeBooking {
   all r: Resource |
     r.isAvailable = 1 => some a: Appointment | a.resources = r
 }
+
+
+
+
+
+// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Complex. >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+// 1. No two appointments for the same doctor can overlap in time.
+fact NoOverlappingAppointments {
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor) implies (
+      a1.date != a2.date or
+      timeInMinutes[a1.timeSlot.endingTime] <= timeInMinutes[a2.timeSlot.startingTime] or
+      timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a1.timeSlot.startingTime])
+}
+
+// 2. Doctors must not have back-to-back appointments without a 10-minute gap
+fact DoctorAppointmentsHave10MinGap {
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
+      timeInMinutes[a1.timeSlot.endingTime] + 10 <= timeInMinutes[a2.timeSlot.startingTime]
+      or timeInMinutes[a2.timeSlot.endingTime] + 10 <= timeInMinutes[a1.timeSlot.startingTime]
+}
+
+// 3. Appointments must fall within the doctor’s declared working hours.
+fact AppointmentsInDoctorsWorkingHours {
+    all a: Appointment |
+    some s: a.doctor.assignedShifts | (s.date = a.date) implies
+    (timeInMinutes[a.timeSlot.startingTime] >= timeInMinutes[s.startingTime] and
+    timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[s.endingTime])
+}
+
+// 4. A nurse cannot be scheduled for night and morning shifts on the same day.
+fact NoMorningAndNightShiftForSameNurse {
+  all s1, s2: Shift |
+    s1 != s2 and // different shifts.
+    s1.date = s2.date and // same date.
+    ((s1.type = "Morning" and s2.type = "Night") or (s1.type = "Night" and s2.type = "Morning")) implies
+      no nurse: Staff | // no staff exists ...
+        nurse.type = "Nurse" and // who is a nurse and ...
+        nurse in s1.assignedTo and 
+        nurse in s2.assignedTo // ... is assigned to both shifts.
+}
+
+// 5. A patient’s EHR can only be modified by the assigned doctor.
+fact OnlyAssignedDoctorCanModifyEHR {
+  all a: Appointment |
+    a.patient.ehr.patient = a.patient and
+    a.doctor in Doctor
+}
+
+// 6. If a patient is transferred from the ward to the ICU, the previous bed must be released.
+fact BedReleaseWhenPatientTransferredAndBedType {
+  all p: Patient, b1, b2: Bed |
+    // Ensure patient p occupies b1 and b2 is empty.
+    p.bed = b1 and b2.isOccupied = 0 and
+    // When patient is transferred to b2 (ICU), b1 is released (ward).
+    p.bed = b2 implies {
+      // Ensure that the patient's previous bed is a ward bed (b1 type).
+      b1.type = "General Ward" and
+      b2.type = "ICU" and // The new bed is ICU.
+      b1.isOccupied = 0 and  // Release previous bed.
+      b1.assignedPatient = none and  // No longer assigned to any patient.
+      b2.isOccupied = 1 and  // The new bed must be occupied.
+      b2.assignedPatient = p // The patient is assigned to the new bed.
+    }
+}
+
+// 7. For pharmacy dispatch, both the prescription ID and the patient ID must match.
+fact PharmacyDispatchPrescriptionIDMatch {
+  all p: Prescription |
+    p.appointment.patient.id = p.appointment.patient.id // prescription is matched to the correct patient.
+}
+
+// 8. Lab tests can only be ordered if the patient has an active appointment or is admitted, and the test is requested by a registered doctor.
+fact LabTestOrderConditions {
+  all lt: LabTest |
+    (lt.appointment.status = "Active" or lt.appointment.patient.appointment != none) and // Admitted = has a bed.
+    lt.appointment.doctor in Doctor // Ensure that lab tests are ordered only by registered doctors.
+}
+
+// 9. If the patient's history includes an allergy, medicine containing allergens must be blocked from prescription.
+fact BlockAllergenMedicineFromPrescription {
+  all p: Patient, m: Medicine |
+    some a: p.ehr.allergies | 
+    a.name in m.allergens implies 
+    not (m in p.prescription.medicines)
+}
+
+// 10. Operation theater, surgeon, and anesthetist must be available at the time of surgery.
+fact OperationTheaterAndStaffAvailability {
+  all s: Surgery |
+    some ot: OperationTheater | ot.id = s.assignedOT and
+    some surgeon: Doctor | surgeon = s.appointment.doctor and
+    some an: Staff | an = s.anesthetist and
+    
+    // Check if the surgeon is available during the surgery time slot
+    some surgeonShift: surgeon.assignedShifts |
+      surgeonShift.date = s.appointment.date and
+      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
+      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[surgeonShift.endingTime] and
+    
+    // Check if the anesthetist is available during the surgery time slot
+    some anesthetistShift: an.assignedShifts |
+      anesthetistShift.date = s.appointment.date and
+      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[anesthetistShift.startingTime] and
+      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[anesthetistShift.endingTime]
+}
+
+
+
+// Assertion:
+assert DoctorCannotHaveMultiplePatients {
+  all d: Doctor |
+    #({ p: Patient | some a: d.appointments | a.patient = p }) <= 1
+}
+check DoctorCannotHaveMultiplePatients for 5
