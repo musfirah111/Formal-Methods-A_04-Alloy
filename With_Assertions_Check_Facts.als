@@ -802,3 +802,237 @@ assert ResourceAvailabilityBeforeBookingAssertion {
     r.isAvailable = 1 => some a: Appointment | a.resources = r
 }
 check ResourceAvailabilityBeforeBookingAssertion for 5
+
+
+
+
+
+
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< SCENARIOS >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
+// Scenario 1: Check bed transfer and ICU nursing assignment together
+assert BedTransferAndICUNursing {
+  all p: Patient, b1, b2: Bed |
+    p.bed = b1 and b2.isOccupied = 0 and
+    p.bed = b2 implies {
+      // Bed transfer conditions
+      b1.type = "General Ward" and
+      b2.type = "ICU" and
+      b1.isOccupied = 0 and
+      b1.assignedPatient = none and
+      b2.isOccupied = 1 and
+      b2.assignedPatient = p and
+      // ICU nursing conditions
+      some n: Staff |
+        n.type = "Nurse" and
+        some s: n.assignedShifts |
+          s.date = p.appointment.date and
+          s.location = "ICU"
+    }
+}
+
+// Scenario 2: Check appointment scheduling with doctor availability and working hours
+assert AppointmentSchedulingConstraints {
+  all a: Appointment |
+    // Doctor must be available
+    some s: a.doctor.assignedShifts | s.date = a.date and
+    // Appointment must be within working hours
+    timeInMinutes[a.timeSlot.startingTime] >= timeInMinutes[s.startingTime] and
+    timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[s.endingTime] and
+    // No overlapping appointments
+    all a2: Appointment |
+      a2 != a and a2.doctor = a.doctor and a2.date = a.date implies
+        timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[a2.timeSlot.startingTime] or
+        timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a.timeSlot.startingTime]
+}
+
+// Scenario 3: Check prescription and allergy safety together
+assert PrescriptionAndAllergySafety {
+  all p: Patient, m: Medicine |
+    // If medicine is prescribed
+    m in p.prescription.medicines implies {
+      // Must have valid prescription
+      some pr: Prescription | pr.medicines = m and pr.appointment.patient = p and
+      // Must not contain allergens
+      no a: p.ehr.allergies | a.name in m.allergens
+    }
+}
+
+// Scenario 4: Check surgery scheduling with staff and resource availability
+assert SurgeryScheduling {
+  all s: Surgery |
+    // Operation theater must be available
+    some ot: OperationTheater | ot.id = s.assignedOT and
+    // Surgeon must be available
+    some surgeon: Doctor | surgeon = s.appointment.doctor and
+    // Anesthetist must be available
+    some an: Staff | an = s.anesthetist and
+    // Check staff availability during surgery time
+    some surgeonShift: surgeon.assignedShifts |
+      surgeonShift.date = s.appointment.date and
+      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
+      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[surgeonShift.endingTime]
+}
+
+// Scenario 5: Check billing and treatment relationship
+assert BillingAndTreatment {
+  all p: Patient |
+    p.ehr.receivedtreatment = 1 implies {
+      some b: Bill | 
+        b.appointment.patient = p and
+        let totalResources = sum r: b.appointment.resources | r.resourceCost,
+            totalLabTests = sum l: b.appointment.labTests | l.testCost,
+            totalMedicines = sum m: { m: Medicine | some pr: p.prescription | 
+              pr.appointment = b.appointment and m in pr.medicines } | m.medicineCost |
+        b.totalAmount = totalResources + totalLabTests + totalMedicines
+    }
+}
+
+
+// Scenario 6: Complete Emergency Management
+// assert ComprehensiveEmergencyManagement {
+//   all e: Emergency |
+//     // Emergency must have valid patient
+//     some p: Patient | p = e.patient and {
+//       // Emergency must be handled by available staff
+//       some d: Doctor | d = e.attendingDoctor and d.isOnLeave = 0 and
+//       some n: Staff | n.type = "Nurse" and n in e.assignedNurses and n.isOnLeave = 0 and
+      
+//       // Emergency must have required resources
+//       all r: e.requiredResources | {
+//         r.isAvailable = 1 and
+//         (r.type = "Emergency Equipment" or r.type = "Life Support Equipment") and
+//         r.lastMaintenanceDate != none and
+        
+//         // Resources must be in emergency department
+//         some ed: EmergencyDepartment | r in ed.resources and
+//           ed.isOperational = 1
+//       }
+//     }
+// }
+
+// // Scenario 7: Complete Laboratory Management
+// assert ComprehensiveLaboratoryManagement {
+//   all l: LabTest |
+//     // Test must be ordered by valid doctor
+//     some d: Doctor | d = l.orderedBy and d.isOnLeave = 0 and {
+//       // Test must be for valid patient
+//       some p: Patient | p = l.patient and {
+//         // Test must be performed in operational lab
+//         some lab: Laboratory |
+//           lab.isOperational = 1 and
+//           lab.type = l.testType and
+//           // Lab must have required equipment
+//           some e: Equipment | e in lab.equipment and
+//             e.type = l.requiredEquipment and
+//             e.isAvailable = 1 and
+//             e.lastCalibrationDate != none
+//       } and
+        
+//       // Results must be properly documented
+//       l.result != none => {
+//         l.resultDate != none and
+//         some t: Staff | t.type = "LabTechnician" and t in l.performedBy
+//       }
+//     }
+// }
+
+// // Scenario 8: Complete Staff Management
+// // assert ComprehensiveStaffManagement {
+// //   all s: Staff |
+// //     // Basic staff requirements
+// //     s.id != none and
+// //     s.name != none and
+// //     s.qualification != none and
+    
+// //     // If staff is on leave
+// //     (s.isOnLeave = 1 => {
+// //       // Staff on leave should not be assigned to any shifts on that day
+// //       no sh: s.assignedShifts
+// //     }) and
+    
+// //     // If staff is assigned shifts
+// //     (some sh: s.assignedShifts => {
+// //       // No overlapping shifts
+// //       all sh1, sh2: s.assignedShifts |
+// //         sh1 != sh2 and sh1.date = sh2.date => {
+// //           timeInMinutes[sh1.endingTime] <= timeInMinutes[sh2.startingTime] or
+// //           timeInMinutes[sh2.endingTime] <= timeInMinutes[sh1.startingTime]
+// //         }
+// //     })
+// // }
+
+
+
+
+
+// // Scenario 9: Complete Resource Inventory Management
+// assert ComprehensiveResourceManagement {
+//   all r: Resource |
+//     // Basic resource requirements
+//     r.id != none and
+//     r.type != none and
+//     (r.isAvailable = 0 or r.isAvailable = 1) and
+    
+//     // If resource is assigned
+//     some a: Appointment | a.resources = r => {
+//       // Resource must be available
+//       r.isAvailable = 1 and
+//       // Resource must be properly maintained
+//       r.lastMaintenanceDate != none and
+//       r.nextMaintenanceDate != none and
+//       // Resource must be in correct location
+//       some l: Location | r in l.resources and
+//         l.type = r.requiredLocation
+//     } and
+    
+//     // Maintenance requirements
+//     r.lastMaintenanceDate != none => {
+//       some m: Maintenance | m.resource = r and
+//         m.date = r.lastMaintenanceDate and
+//         m.performedBy != none and
+//         m.status = "Completed"
+//     }
+// }
+
+// // Scenario 10: Complete Patient Record Management
+// assert ComprehensivePatientRecordManagement {
+//   all p: Patient |
+//     // Basic patient information
+//     p.id != none and
+//     p.name != none and
+//     p.dob != none and
+    
+//     // Must have EHR
+//     some e: EHR | e.patient = p and {
+//       // EHR must be properly maintained
+//       e.lastUpdated != none and
+//       e.updatedBy != none and
+      
+//       // Allergies check
+//       all a: e.allergies | {
+//         a.name != none and
+//         a.severity != none and
+//         a.diagnosedDate != none
+//       } and
+      
+//       // Medications check
+//       all m: e.medications | {
+//         m.name != none and
+//         m.dosage != none and
+//         m.frequency != none
+//       }
+//     }
+// }
+
+// // Check all assertions
+check BedTransferAndICUNursing
+check AppointmentSchedulingConstraints
+check PrescriptionAndAllergySafety
+check SurgeryScheduling
+check BillingAndTreatment
+// check ComprehensiveEmergencyManagement for 5
+// check ComprehensiveLaboratoryManagement for 5
+// check ComprehensiveStaffManagement for 5
+// check ComprehensiveResourceManagement for 5
+// check ComprehensivePatientRecordManagement for 5
