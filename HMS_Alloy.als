@@ -342,7 +342,10 @@ fact AutoAssignedNurseToICUPatient {
           s.location = "ICU"
 }
 
-// Assertion to Verify
+
+
+//<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Assertion to Verify >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+
 
 // All patients must have at least one EHR entry.
 fact AtleastOneEHREntry {
@@ -353,12 +356,13 @@ fact AtleastOneEHREntry {
 
 // All bills must match the sum of resources, lab tests, and medication costs.
 fact BillMatchTheSum {
-  // all b: Bill | 
-  //   b.totalAmount = let totalSum |
-  //   totalSum = r: Resource |
-  //   r.resourceCost + l: LabTest |
-  //   l.testCost + m: Medicine |
-  //   m.medicineCosts
+  all b: Bill | 
+    let a = b.appointment |
+    let total_Resources_Cost = sum r: a.resources | r.resourceCost |
+    let total_LabTests_Cost = sum l: a.labTests | l.testCost |
+    let total_Medicines_Cost = sum m: { m: Medicine | some pr: b.appointment.patient.prescription 
+      | pr.appointment = a and m in pr.medicines } | m.medicineCost |
+    b.totalAmount = total_Resources_Cost + total_LabTests_Cost + total_Medicines_Cost
 }
 
 // Meds can’t be issued without a prescription.
