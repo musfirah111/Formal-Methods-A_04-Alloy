@@ -199,19 +199,19 @@ assert DoctorCanHaveMultiplePatientsAssertion {
 }
 check DoctorCanHaveMultiplePatientsAssertion for 5
 
-// 2. A resource can be assigned to only one patient at a time.
-// fact EachResourceAssignedToOnePatient {
-//   all r: Resource |
-//     one r.appointment.patient
-// }
+//2. A resource can be assigned to only one patient at a time.
+fact EachResourceAssignedToOnePatient {
+  all r: Resource |
+    one r.appointment.patient
+}
 
-// // Assertion to ensure no two resources are assigned to the same patient at the same time.
-// assert ResourceAssignedToOnePatientAssertion {
-//   all disjoint r1, r2: Resource |
-//     r1.appointment.patient = r2.appointment.patient and r1 != r2
-// }
+// Assertion to ensure no two resources are assigned to the same patient at the same time.
+assert ResourceAssignedToOnePatientAssertion {
+  all r: Resource |
+    one r.appointment.patient
+}
 
-// check ResourceAssignedToOnePatientAssertion for 5
+check ResourceAssignedToOnePatientAssertion for 5
 
 // 3. Each appointment is linked to one doctor and one patient.
 fact EachAppointmentLinkedToDoctorAndPatient {
@@ -254,43 +254,13 @@ check BillLinkedToOnePatientAssertion for 5
 //<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<Business or Real World Rules (5 - 10)>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 //Appointments cannot be scheduled on national holidays except in emergencies.
-// fact NoAppointmentOnNationalHolidaysExceptEmergency{
-//    all a: Appointment | a.date in NationalHolidays.dates implies a.type = "Emergency"
-// }
-
-// // Assertion.
-// assert NoAppointmentOnNationalHolidaysExceptEmergencyAssertion {
-//   all a: Appointment |
-//     a.date in NationalHolidays.dates implies a.type = "Emergency"
-// }
-// check NoAppointmentOnNationalHolidaysExceptEmergencyAssertion for 5
-
-// 2. A resource can be assigned to only one patient at a time.
-fact EachResourceAssignedToOnePatient {
-  all r: Resource |
-    one r.appointment.patient
+fact NoAppointmentOnNationalHolidaysExceptEmergency{
+   all a: Appointment | a.date in NationalHolidays.dates implies a.type = "Emergency"
 }
 
-// Assertion to ensure no two resources are assigned to the same patient at the same time.
-assert ResourceAssignedToOnePatientAssertion {
-  all disjoint r1, r2: Resource |
-    r1.appointment.patient = r2.appointment.patient and r1 != r2
-}
-
-check ResourceAssignedToOnePatientAssertion for 5
-
-// Fact to ensure no appointment is scheduled on a national holiday unless it's an emergency
-fact NoAppointmentOnNationalHolidaysExceptEmergency {
-  all a: Appointment | 
-    a.date in NationalHolidays.dates implies a.type = "Emergency"
-}
-
-// Assertion to ensure the "NoAppointmentOnNationalHolidaysExceptEmergency" fact holds.
+// Assertion.
 assert NoAppointmentOnNationalHolidaysExceptEmergencyAssertion {
   all a: Appointment |
     a.date in NationalHolidays.dates implies a.type = "Emergency"
 }
-
 check NoAppointmentOnNationalHolidaysExceptEmergencyAssertion for 5
-
-
