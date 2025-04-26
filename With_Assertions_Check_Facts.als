@@ -428,14 +428,35 @@ check AutoAssignedNurseToICUPatientAssertion for 5
 
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Complex. >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
+pred timeSlotsOverlap[t1, t2: TimeSlot] {
+  timeInMinutes[t1.endingTime] > timeInMinutes[t2.startingTime] and
+  timeInMinutes[t2.endingTime] > timeInMinutes[t1.startingTime]
+}
+
+pred timeSlotsHaveGap[t1, t2: TimeSlot, gap: Int] {
+  timeInMinutes[t1.endingTime] + gap <= timeInMinutes[t2.startingTime] or
+  timeInMinutes[t2.endingTime] + gap <= timeInMinutes[t1.startingTime]
+}
+
+pred timeSlotWithinShift[t: TimeSlot, s: Shift] {
+  timeInMinutes[t.startingTime] >= timeInMinutes[s.startingTime] and
+  timeInMinutes[t.endingTime] <= timeInMinutes[s.endingTime]
+}
+
+pred staffAvailableDuringTimeSlot[staff: Staff, t: TimeSlot, Date: String] {
+  some sf: Shift | sf in staff.assignedShifts and
+    Date in sf.date and
+    timeSlotWithinShift[t, sf]
+}
+
+
 // 1. No two appointments for the same doctor can overlap in time.
 fact NoOverlappingAppointments {
   all a1, a2: Appointment |
-    (a1 != a2 and a1.doctor = a2.doctor) implies (
-      a1.date != a2.date or
-      timeInMinutes[a1.timeSlot.endingTime] <= timeInMinutes[a2.timeSlot.startingTime] or
-      timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a1.timeSlot.startingTime])
+    (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
+    not timeSlotsOverlap[a1.timeSlot, a2.timeSlot]
 }
+
 
 // Assertion to verify that no two appointments for the same doctor overlap in time
 assert NoOverlappingAppointmentsAssertion {
@@ -451,10 +472,8 @@ check NoOverlappingAppointmentsAssertion for 5
 fact DoctorAppointmentsHave10MinGap {
   all a1, a2: Appointment |
     (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
-      timeInMinutes[a1.timeSlot.endingTime] + 10 <= timeInMinutes[a2.timeSlot.startingTime]
-      or timeInMinutes[a2.timeSlot.endingTime] + 10 <= timeInMinutes[a1.timeSlot.startingTime]
+    timeSlotsHaveGap[a1.timeSlot, a2.timeSlot, 10]
 }
-
 // Assertion to verify that doctors have a 10-minute gap between appointments
 assert DoctorAppointmentsHave10MinGapAssertion {
   all a1, a2: Appointment |
@@ -466,12 +485,11 @@ check DoctorAppointmentsHave10MinGapAssertion for 5
 
 // 3. Appointments must fall within the doctor’s declared working hours.
 fact AppointmentsInDoctorsWorkingHours {
-    all a: Appointment |
-    some s: a.doctor.assignedShifts | (s.date = a.date) implies
-    (timeInMinutes[a.timeSlot.startingTime] >= timeInMinutes[s.startingTime] and
-    timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[s.endingTime])
+  all a: Appointment |
+    some s: a.doctor.assignedShifts |
+      s.date = a.date implies
+      timeSlotWithinShift[a.timeSlot, s]
 }
-
 // Assertion to verify that appointments fall within doctors' working hours
 assert AppointmentsInDoctorsWorkingHoursAssertion {
     all a: Appointment |
@@ -513,6 +531,7 @@ fact OnlyAssignedDoctorCanModifyEHR {
     a.patient.ehr.patient = a.patient and
     a.doctor in Doctor
 }
+
 
 // Assertion to verify that only assigned doctors can modify EHR
 assert OnlyAssignedDoctorCanModifyEHRAssertion {
@@ -606,17 +625,13 @@ check BlockAllergenMedicineFromPrescriptionAssertion for 5
 // 10. Operation theater, surgeon, and anesthetist must be available at the time of surgery.
 fact OperationTheaterAndStaffAvailability {
   all s: Surgery |
-    // Basic availability checks
     some ot: OperationTheater | ot.id = s.assignedOT and
     some surgeon: Doctor | surgeon = s.appointment.doctor and
     some an: Staff | an = s.anesthetist and
-    
-    // Simplified time slot checks
-    some surgeonShift: surgeon.assignedShifts |
-      surgeonShift.date = s.appointment.date and
-      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
-      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[surgeonShift.endingTime]
+    staffAvailableDuringTimeSlot[surgeon, s.appointment.timeSlot, s.appointment.date] and
+    staffAvailableDuringTimeSlot[an, s.appointment.timeSlot, s.appointment.date]
 }
+
 
 // Assertion with simplified constraints
 assert OperationTheaterAndStaffAvailabilityAssertion {

@@ -396,30 +396,48 @@ fact ResourceAvailabilityBeforeBooking {
 
 
 // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Complex. >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-// 1. No two appointments for the same doctor can overlap in time.
-fact NoOverlappingAppointments {
-  all a1, a2: Appointment |
-    (a1 != a2 and a1.doctor = a2.doctor) implies (
-      a1.date != a2.date or
-      timeInMinutes[a1.timeSlot.endingTime] <= timeInMinutes[a2.timeSlot.startingTime] or
-      timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a1.timeSlot.startingTime])
+// Predicates for common functionality
+pred timeSlotsOverlap[t1, t2: TimeSlot] {
+  timeInMinutes[t1.endingTime] > timeInMinutes[t2.startingTime] and
+  timeInMinutes[t2.endingTime] > timeInMinutes[t1.startingTime]
 }
 
-// 2. Doctors must not have back-to-back appointments without a 10-minute gap
+pred timeSlotsHaveGap[t1, t2: TimeSlot, gap: Int] {
+  timeInMinutes[t1.endingTime] + gap <= timeInMinutes[t2.startingTime] or
+  timeInMinutes[t2.endingTime] + gap <= timeInMinutes[t1.startingTime]
+}
+
+pred timeSlotWithinShift[t: TimeSlot, s: Shift] {
+  timeInMinutes[t.startingTime] >= timeInMinutes[s.startingTime] and
+  timeInMinutes[t.endingTime] <= timeInMinutes[s.endingTime]
+}
+
+pred staffAvailableDuringTimeSlot[staff: Staff, t: TimeSlot, Date: String] {
+  some sf: Shift | sf in staff.assignedShifts and
+    Date in sf.date and
+    timeSlotWithinShift[t, sf]
+}
+
+
+fact NoOverlappingAppointments {
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
+    not timeSlotsOverlap[a1.timeSlot, a2.timeSlot]
+}
+
 fact DoctorAppointmentsHave10MinGap {
   all a1, a2: Appointment |
     (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
-      timeInMinutes[a1.timeSlot.endingTime] + 10 <= timeInMinutes[a2.timeSlot.startingTime]
-      or timeInMinutes[a2.timeSlot.endingTime] + 10 <= timeInMinutes[a1.timeSlot.startingTime]
+    timeSlotsHaveGap[a1.timeSlot, a2.timeSlot, 10]
 }
 
-// 3. Appointments must fall within the doctor’s declared working hours.
 fact AppointmentsInDoctorsWorkingHours {
-    all a: Appointment |
-    some s: a.doctor.assignedShifts | (s.date = a.date) implies
-    (timeInMinutes[a.timeSlot.startingTime] >= timeInMinutes[s.startingTime] and
-    timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[s.endingTime])
+  all a: Appointment |
+    some s: a.doctor.assignedShifts |
+      s.date = a.date implies
+      timeSlotWithinShift[a.timeSlot, s]
 }
+
 
 // 4. A nurse cannot be scheduled for night and morning shifts on the same day.
 fact NoMorningAndNightShiftForSameNurse {
@@ -433,7 +451,7 @@ fact NoMorningAndNightShiftForSameNurse {
         nurse in s2.assignedTo // ... is assigned to both shifts.
 }
 
-// 5. A patient’s EHR can only be modified by the assigned doctor.
+// 5. A patient's EHR can only be modified by the assigned doctor.
 fact OnlyAssignedDoctorCanModifyEHR {
   all a: Appointment |
     a.patient.ehr.patient = a.patient and
@@ -484,18 +502,8 @@ fact OperationTheaterAndStaffAvailability {
     some ot: OperationTheater | ot.id = s.assignedOT and
     some surgeon: Doctor | surgeon = s.appointment.doctor and
     some an: Staff | an = s.anesthetist and
-    
-    // Check if the surgeon is available during the surgery time slot
-    some surgeonShift: surgeon.assignedShifts |
-      surgeonShift.date = s.appointment.date and
-      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
-      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[surgeonShift.endingTime] and
-    
-    // Check if the anesthetist is available during the surgery time slot
-    some anesthetistShift: an.assignedShifts |
-      anesthetistShift.date = s.appointment.date and
-      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[anesthetistShift.startingTime] and
-      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[anesthetistShift.endingTime]
+    staffAvailableDuringTimeSlot[surgeon, s.appointment.timeSlot, s.appointment.date] and
+    staffAvailableDuringTimeSlot[an, s.appointment.timeSlot, s.appointment.date]
 }
 
 
