@@ -828,6 +828,8 @@ assert BedTransferAndICUNursing {
     }
 }
 
+check BedTransferAndICUNursing
+
 // Scenario 2: Check appointment scheduling with doctor availability and working hours.
 assert AppointmentSchedulingConstraints {
   all a: Appointment |
@@ -843,6 +845,8 @@ assert AppointmentSchedulingConstraints {
         timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a.timeSlot.startingTime]
 }
 
+check AppointmentSchedulingConstraints
+
 // Scenario 3: Check prescription and allergy safety together.
 assert PrescriptionAndAllergySafety {
   all p: Patient, m: Medicine |
@@ -854,6 +858,8 @@ assert PrescriptionAndAllergySafety {
       no a: p.ehr.allergies | a.name in m.allergens
     }
 }
+
+check PrescriptionAndAllergySafety
 
 // Scenario 4: Check surgery scheduling with staff and resource availability.
 assert SurgeryScheduling {
@@ -871,6 +877,8 @@ assert SurgeryScheduling {
       timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[surgeonShift.endingTime]
 }
 
+check SurgeryScheduling
+
 // Scenario 5: Check billing and treatment relationship.
 assert BillingAndTreatment {
   all p: Patient |
@@ -885,11 +893,6 @@ assert BillingAndTreatment {
     }
 }
 
-// Check all assertions
-check BedTransferAndICUNursing
-check AppointmentSchedulingConstraints
-check PrescriptionAndAllergySafety
-check SurgeryScheduling
 check BillingAndTreatment
 
 
@@ -901,7 +904,6 @@ check BillingAndTreatment
 // Minimum 10-minute gaps between appointments
 // All appointments fall within doctor's working hours
 
-// Test scenario for doctor appointment scheduling
 assert DoctorAppointmentConstraints {
   // Test case 1: No overlapping appointments
   all a1, a2: Appointment |
@@ -923,6 +925,9 @@ assert DoctorAppointmentConstraints {
        timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[s.endingTime])
 }
 
+check DoctorAppointmentConstraints for 5
+
+
 
 // Scenario 2: Patient Care and Safety
 // Verifies critical patient safety measures:
@@ -930,9 +935,6 @@ assert DoctorAppointmentConstraints {
 // Proper bed management during patient transfers (e.g., ward to ICU)
 // Prevention of prescribing medications containing patient's known allergens
 
-
-
-// Test scenario for patient safety constraints
 assert PatientSafetyConstraints {
   // Test case 1: EHR access control
   all a: Appointment |
@@ -955,15 +957,15 @@ assert PatientSafetyConstraints {
     not (m in p.prescription.medicines)
 }
 
+check PatientSafetyConstraints for 5
+
+
 
 // Management
 // Checks staff and resource allocation:
 // Nurses cannot work both morning and night shifts on the same day
 // Operation theaters and required staff (surgeon, anesthetist) must be available during surgeries
 
-
-
-// Test scenario for staff scheduling and resource management
 assert StaffResourceConstraints {
   // Test case 1: Nurse shift scheduling
   all s1, s2: Shift |
@@ -990,9 +992,9 @@ assert StaffResourceConstraints {
       timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[anesthetistShift.startingTime] and
       timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[anesthetistShift.endingTime]
 }
-check DoctorAppointmentConstraints for 5
-check PatientSafetyConstraints for 5
+
 check StaffResourceConstraints for 5
+
 
 // Predicates.
 pred AtLeastTwoBeds { #Bed >= 2 }
@@ -1003,5 +1005,3 @@ run AtLeastOneNurse for 5
 
 pred AtLeastOneICUBed { some b: Bed | b.type = "ICU" }
 run AtLeastOneICUBed for 5
-
-
