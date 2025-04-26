@@ -462,14 +462,6 @@ pred BedTransferFromWardToICU(p: Patient, b1, b2: Bed) {
   }
 }
 
-// Run commands for Predicates.
-run timeSlotsOverlap for 5
-run timeSlotsHaveGap for 5
-run timeSlotWithinShift for 5
-run staffAvailableDuringTimeSlot for 5
-run BedTransferFromWardToICU for 5
-run noNurseAssignedToMorningAndNightShiftOnSameDay for 5
-
 // Predicate to ensure that no nurse is assigned to both a morning and night shift on the same day.
 pred noNurseAssignedToMorningAndNightShiftOnSameDay[s1, s2: Shift] {
   ((s1.type = "Morning" and s2.type = "Night") or (s1.type = "Night" and s2.type = "Morning")) implies
