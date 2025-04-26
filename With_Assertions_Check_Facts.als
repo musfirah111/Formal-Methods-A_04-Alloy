@@ -889,150 +889,115 @@ assert BillingAndTreatment {
 }
 
 
-// Scenario 6: Complete Emergency Management
-// assert ComprehensiveEmergencyManagement {
-//   all e: Emergency |
-//     // Emergency must have valid patient
-//     some p: Patient | p = e.patient and {
-//       // Emergency must be handled by available staff
-//       some d: Doctor | d = e.attendingDoctor and d.isOnLeave = 0 and
-//       some n: Staff | n.type = "Nurse" and n in e.assignedNurses and n.isOnLeave = 0 and
-      
-//       // Emergency must have required resources
-//       all r: e.requiredResources | {
-//         r.isAvailable = 1 and
-//         (r.type = "Emergency Equipment" or r.type = "Life Support Equipment") and
-//         r.lastMaintenanceDate != none and
-        
-//         // Resources must be in emergency department
-//         some ed: EmergencyDepartment | r in ed.resources and
-//           ed.isOperational = 1
-//       }
-//     }
-// }
 
-// // Scenario 7: Complete Laboratory Management
-// assert ComprehensiveLaboratoryManagement {
-//   all l: LabTest |
-//     // Test must be ordered by valid doctor
-//     some d: Doctor | d = l.orderedBy and d.isOnLeave = 0 and {
-//       // Test must be for valid patient
-//       some p: Patient | p = l.patient and {
-//         // Test must be performed in operational lab
-//         some lab: Laboratory |
-//           lab.isOperational = 1 and
-//           lab.type = l.testType and
-//           // Lab must have required equipment
-//           some e: Equipment | e in lab.equipment and
-//             e.type = l.requiredEquipment and
-//             e.isAvailable = 1 and
-//             e.lastCalibrationDate != none
-//       } and
-        
-//       // Results must be properly documented
-//       l.result != none => {
-//         l.resultDate != none and
-//         some t: Staff | t.type = "LabTechnician" and t in l.performedBy
-//       }
-//     }
-// }
-
-// // Scenario 8: Complete Staff Management
-// // assert ComprehensiveStaffManagement {
-// //   all s: Staff |
-// //     // Basic staff requirements
-// //     s.id != none and
-// //     s.name != none and
-// //     s.qualification != none and
-    
-// //     // If staff is on leave
-// //     (s.isOnLeave = 1 => {
-// //       // Staff on leave should not be assigned to any shifts on that day
-// //       no sh: s.assignedShifts
-// //     }) and
-    
-// //     // If staff is assigned shifts
-// //     (some sh: s.assignedShifts => {
-// //       // No overlapping shifts
-// //       all sh1, sh2: s.assignedShifts |
-// //         sh1 != sh2 and sh1.date = sh2.date => {
-// //           timeInMinutes[sh1.endingTime] <= timeInMinutes[sh2.startingTime] or
-// //           timeInMinutes[sh2.endingTime] <= timeInMinutes[sh1.startingTime]
-// //         }
-// //     })
-// // }
-
-
-
-
-
-// // Scenario 9: Complete Resource Inventory Management
-// assert ComprehensiveResourceManagement {
-//   all r: Resource |
-//     // Basic resource requirements
-//     r.id != none and
-//     r.type != none and
-//     (r.isAvailable = 0 or r.isAvailable = 1) and
-    
-//     // If resource is assigned
-//     some a: Appointment | a.resources = r => {
-//       // Resource must be available
-//       r.isAvailable = 1 and
-//       // Resource must be properly maintained
-//       r.lastMaintenanceDate != none and
-//       r.nextMaintenanceDate != none and
-//       // Resource must be in correct location
-//       some l: Location | r in l.resources and
-//         l.type = r.requiredLocation
-//     } and
-    
-//     // Maintenance requirements
-//     r.lastMaintenanceDate != none => {
-//       some m: Maintenance | m.resource = r and
-//         m.date = r.lastMaintenanceDate and
-//         m.performedBy != none and
-//         m.status = "Completed"
-//     }
-// }
-
-// // Scenario 10: Complete Patient Record Management
-// assert ComprehensivePatientRecordManagement {
-//   all p: Patient |
-//     // Basic patient information
-//     p.id != none and
-//     p.name != none and
-//     p.dob != none and
-    
-//     // Must have EHR
-//     some e: EHR | e.patient = p and {
-//       // EHR must be properly maintained
-//       e.lastUpdated != none and
-//       e.updatedBy != none and
-      
-//       // Allergies check
-//       all a: e.allergies | {
-//         a.name != none and
-//         a.severity != none and
-//         a.diagnosedDate != none
-//       } and
-      
-//       // Medications check
-//       all m: e.medications | {
-//         m.name != none and
-//         m.dosage != none and
-//         m.frequency != none
-//       }
-//     }
-// }
-
-// // Check all assertions
+// Check all assertions
 check BedTransferAndICUNursing
 check AppointmentSchedulingConstraints
 check PrescriptionAndAllergySafety
 check SurgeryScheduling
 check BillingAndTreatment
-// check ComprehensiveEmergencyManagement for 5
-// check ComprehensiveLaboratoryManagement for 5
-// check ComprehensiveStaffManagement for 5
-// check ComprehensiveResourceManagement for 5
-// check ComprehensivePatientRecordManagement for 5
+
+
+// Scenario 1: Doctor Appointment Scheduling
+// Tests proper appointment management by ensuring:
+// No overlapping appointments for the same doctor
+// Minimum 10-minute gaps between appointments
+// All appointments fall within doctor's working hours
+
+
+
+// Test scenario for doctor appointment scheduling
+assert DoctorAppointmentConstraints {
+  // Test case 1: No overlapping appointments
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
+    (timeInMinutes[a1.timeSlot.endingTime] <= timeInMinutes[a2.timeSlot.startingTime] or
+     timeInMinutes[a2.timeSlot.endingTime] <= timeInMinutes[a1.timeSlot.startingTime])
+
+  // Test case 2: 10-minute gap between appointments
+  all a1, a2: Appointment |
+    (a1 != a2 and a1.doctor = a2.doctor and a1.date = a2.date) implies
+    (timeInMinutes[a1.timeSlot.endingTime] + 10 <= timeInMinutes[a2.timeSlot.startingTime] or
+     timeInMinutes[a2.timeSlot.endingTime] + 10 <= timeInMinutes[a1.timeSlot.startingTime])
+
+  // Test case 3: Appointments within working hours
+  all a: Appointment |
+    some s: a.doctor.assignedShifts |
+      s.date = a.date implies
+      (timeInMinutes[a.timeSlot.startingTime] >= timeInMinutes[s.startingTime] and
+       timeInMinutes[a.timeSlot.endingTime] <= timeInMinutes[s.endingTime])
+}
+
+
+// Scenario 2: Patient Care and Safety
+// Verifies critical patient safety measures:
+// Only assigned doctors can access patient EHRs
+// Proper bed management during patient transfers (e.g., ward to ICU)
+// Prevention of prescribing medications containing patient's known allergens
+
+
+
+// Test scenario for patient safety constraints
+assert PatientSafetyConstraints {
+  // Test case 1: EHR access control
+  all a: Appointment |
+    a.patient.ehr.patient = a.patient and
+    a.doctor in Doctor
+
+  // Test case 2: Bed management during transfer
+  all p: Patient, b1, b2: Bed |
+    (p.bed = b1 and b2.isOccupied = 0 and p.bed = b2) implies
+    (b1.type = "General Ward" and
+     b2.type = "ICU" and
+     b1.isOccupied = 0 and
+     b1.assignedPatient = none and
+     b2.isOccupied = 1 and
+     b2.assignedPatient = p)
+
+  // Test case 3: Allergy safety
+  all p: Patient, m: Medicine |
+    (some a: p.ehr.allergies | a.name in m.allergens) implies
+    not (m in p.prescription.medicines)
+}
+
+
+// Management
+// Checks staff and resource allocation:
+// Nurses cannot work both morning and night shifts on the same day
+// Operation theaters and required staff (surgeon, anesthetist) must be available during surgeries
+
+
+
+// Test scenario for staff scheduling and resource management
+assert StaffResourceConstraints {
+  // Test case 1: Nurse shift scheduling
+  all s1, s2: Shift |
+    (s1 != s2 and
+     s1.date = s2.date and
+     ((s1.type = "Morning" and s2.type = "Night") or
+      (s1.type = "Night" and s2.type = "Morning"))) implies
+    no nurse: Staff |
+      nurse.type = "Nurse" and
+      nurse in s1.assignedTo and
+      nurse in s2.assignedTo
+
+  // Test case 2: Operation theater availability
+  all s: Surgery |
+    some ot: OperationTheater | ot.id = s.assignedOT and
+    some surgeon: Doctor | surgeon = s.appointment.doctor and
+    some an: Staff | an = s.anesthetist and
+    some surgeonShift: surgeon.assignedShifts |
+      surgeonShift.date = s.appointment.date and
+      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
+      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[surgeonShift.endingTime] and
+    some anesthetistShift: an.assignedShifts |
+      anesthetistShift.date = s.appointment.date and
+      timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[anesthetistShift.startingTime] and
+      timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[anesthetistShift.endingTime]
+}
+
+
+
+check DoctorAppointmentConstraints for 5
+check PatientSafetyConstraints for 5
+check StaffResourceConstraints for 5
