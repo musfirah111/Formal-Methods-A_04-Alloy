@@ -632,16 +632,13 @@ fact OperationTheaterAndStaffAvailability {
     staffAvailableDuringTimeSlot[an, s.appointment.timeSlot, s.appointment.date]
 }
 
-
-// Assertion with simplified constraints
+// Assertion.
 assert OperationTheaterAndStaffAvailabilityAssertion {
   all s: Surgery |
-    // Basic availability checks
     some ot: OperationTheater | ot.id = s.assignedOT and
     some surgeon: Doctor | surgeon = s.appointment.doctor and
     some an: Staff | an = s.anesthetist and
     
-    // Simplified time slot checks
     some surgeonShift: surgeon.assignedShifts |
       surgeonShift.date = s.appointment.date and
       timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[surgeonShift.startingTime] and
