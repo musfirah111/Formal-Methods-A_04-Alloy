@@ -990,7 +990,18 @@ assert StaffResourceConstraints {
       timeInMinutes[s.appointment.timeSlot.startingTime] >= timeInMinutes[anesthetistShift.startingTime] and
       timeInMinutes[s.appointment.timeSlot.endingTime] <= timeInMinutes[anesthetistShift.endingTime]
 }
-
 check DoctorAppointmentConstraints for 5
 check PatientSafetyConstraints for 5
 check StaffResourceConstraints for 5
+
+// Predicates.
+pred AtLeastTwoBeds { #Bed >= 2 }
+run AtLeastTwoBeds for 5
+
+pred AtLeastOneNurse { some s: Staff | s.type = "Nurse" }
+run AtLeastOneNurse for 5
+
+pred AtLeastOneICUBed { some b: Bed | b.type = "ICU" }
+run AtLeastOneICUBed for 5
+
+
